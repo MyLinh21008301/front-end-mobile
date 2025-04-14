@@ -1,0 +1,4 @@
+npm install @react-native-community/datetimepicker để dung datetimepicker
+npm install react-native-vector-icons sử dụng react-icon
+expo install expo-image-picker để chọn hoặc chụp ảnh 
+npm install axios @react-native-async-storage/async-storage Để xử lý yêu cầu API và lưu trữ token
