@@ -1,19 +1,19 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from 'react-native';
-import React, { useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import Colors from '../constants/colors'; 
-import axios from 'axios';
-import { loginUser } from '../api/authApi';
+import { StatusBar } from "expo-status-bar";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from "react-native";
+import React, { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Colors from "../constants/colors";
+import axios from "axios";
+import { loginUser } from "../api/authApi";
 
 export default function LoginScreen({ navigation }) {
-  const [phone, setPhone] = useState('+84');
-  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState("+84");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!phone || !password) {
-      Alert.alert('Lỗi', 'Vui lòng nhập số điện thoại và mật khẩu');
+      Alert.alert("Lỗi", "Vui lòng nhập số điện thoại và mật khẩu");
       return;
     }
 
@@ -21,21 +21,29 @@ export default function LoginScreen({ navigation }) {
 
     try {
       const data = await loginUser(phone, password);
-      const { token } = data;
+      const { token, phoneNumber } = data; // Giả định API trả về phoneNumber
 
-      await AsyncStorage.setItem('authToken', token);
+      // Lưu token và phoneNumber vào AsyncStorage
+      await AsyncStorage.setItem("authToken", token);
+      await AsyncStorage.setItem("phoneNumber", phoneNumber || phone); // Lưu phoneNumber từ API hoặc input
 
-      navigation.replace('Home');
+      console.log("LoginScreen - Stored Token:", token);
+      console.log("LoginScreen - Stored PhoneNumber:", phoneNumber || phone);
+
+      navigation.replace("Home");
+      // navigation.replace("Test");
+      
     } catch (error) {
       if (error.response) {
-        Alert.alert('Đăng nhập thất bại', error.response.data.message || 'Số điện thoại hoặc mật khẩu không đúng');
+        Alert.alert("Đăng nhập thất bại", error.response.data.message || "Số điện thoại hoặc mật khẩu không đúng");
       } else {
-        Alert.alert('Lỗi', 'Có lỗi xảy ra. Vui lòng thử lại sau.');
+        Alert.alert("Lỗi", "Có lỗi xảy ra. Vui lòng thử lại sau.");
       }
     } finally {
       setLoading(false);
     }
   };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Zala</Text>
@@ -60,14 +68,12 @@ export default function LoginScreen({ navigation }) {
         onPress={handleLogin}
         disabled={loading}
       >
-        <Text style={styles.loginText}>
-          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
-        </Text>
+        <Text style={styles.loginText}>{loading ? "Đang đăng nhập..." : "Đăng nhập"}</Text>
       </TouchableOpacity>
 
       <View style={styles.registerContainer}>
         <Text style={styles.questionText}>Bạn chưa có tài khoản Zala?</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+        <TouchableOpacity onPress={() => navigation.navigate("Register")}>
           <Text style={styles.registerText}>Đăng ký</Text>
         </TouchableOpacity>
       </View>
