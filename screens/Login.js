@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Colors from '../constants/colors'; 
 import axios from 'axios';
-import { loginUser } from '../api/authApi';
+import { loginUser } from '../api/AuthAPI';
 
 export default function LoginScreen({ navigation }) {
   const [phone, setPhone] = useState('+84');
@@ -25,7 +25,7 @@ export default function LoginScreen({ navigation }) {
 
       await AsyncStorage.setItem('authToken', token);
 
-      navigation.replace('Home');
+      navigation.replace('ConversationsScreen'); 
     } catch (error) {
       if (error.response) {
         Alert.alert('Đăng nhập thất bại', error.response.data.message || 'Số điện thoại hoặc mật khẩu không đúng');
@@ -67,7 +67,7 @@ export default function LoginScreen({ navigation }) {
 
       <View style={styles.registerContainer}>
         <Text style={styles.questionText}>Bạn chưa có tài khoản Zala?</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+        <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen')}>
           <Text style={styles.registerText}>Đăng ký</Text>
         </TouchableOpacity>
       </View>

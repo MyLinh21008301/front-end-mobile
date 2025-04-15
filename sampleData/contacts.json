@@ -1,0 +1,27 @@
+[
+    {
+      "phoneNumber": "+84896939481",
+      "name": "Who is this ? ",
+      "dateOfBirth": "2025-04-18",
+      "bio": "adfasfas",
+      "baseImg": "https://dc7q18mlu9m5b.cloudfront.net/1744478439472_485230396_647279934674696_7039182451871367751_n.jpg",
+      "backgroundImg": "https://dc7q18mlu9m5b.cloudfront.net/1744364727878_3016.png",
+      "status": "online",
+      "lastOnlineTime": "2025-04-14T17:39:52.556101201",
+      "online": true,
+      "male": false
+    },
+    {
+      "phoneNumber": "+84376626025",
+      "name": "Pham The Manh",
+      "dateOfBirth": "2025-04-09",
+      "bio": null,
+      "baseImg": "https://dc7q18mlu9m5b.cloudfront.net/1744260313243_Screenshot From 2025-03-03 08-01-23.png",
+      "backgroundImg": null,
+      "status": "online",
+      "lastOnlineTime": "2025-04-14T17:39:34.104323186",
+      "online": true,
+      "male": true
+    }
+  ]
+  

@@ -14,7 +14,7 @@ import { FontAwesome } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import axios from 'axios';
 import Colors from "../constants/colors"; 
-import { registerUser } from '../api/authApi'; 
+import { registerUser } from '../api/AuthAPI'; 
 
 
 
@@ -80,7 +80,7 @@ export default function RegisterScreen({ navigation }) {
   
       if (data.success) {
         alert(data.message || 'Đăng ký thành công!');
-        navigation.navigate('Login');
+        navigation.navigate('LoginScreen');
       } else {
         alert('Đăng ký thất bại. Vui lòng kiểm tra lại thông tin.');
       }
@@ -180,7 +180,7 @@ export default function RegisterScreen({ navigation }) {
       </TouchableOpacity>
       <View style={styles.loginContainer}>
         <Text style={styles.loginLink}>Đã có tài khoản Zala?</Text>
-        <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+        <TouchableOpacity onPress={() => navigation.navigate("LoginScreen")}>
           <Text style={styles.loginText}>Đăng nhập</Text>
         </TouchableOpacity>
       </View>
