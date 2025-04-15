@@ -1,8 +1,10 @@
+// App.js
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
 
 import LoginScreen from './screens/Login';
 import RegisterScreen from './screens/Register';
@@ -15,8 +17,8 @@ import ConversationScreen from './screens/ConversationScreen';
 
 import { getToken } from './api/TokenAPI';
 import { loginWithJWT } from './api/AuthAPI';
-import SocketContext from './SocketContext'; // Import the context
-import useSocket from './hooks/useSocket'; // Import the useSocket hook
+import SocketContext from './SocketContext';
+import useSocket from './hooks/useSocket';
 
 const Stack = createNativeStackNavigator();
 
@@ -25,7 +27,7 @@ export default function App() {
 
   // Initialize socket with URL and token
   const [token, setToken] = useState(null);
-  const socketState = useSocket('http://54.169.214.143:3002', token); // Replace with your socket URL
+  const socketState = useSocket('http://54.169.214.143:3002', token);
 
   useEffect(() => {
     const checkJWT = async () => {
@@ -37,6 +39,8 @@ export default function App() {
           if (response && response.user) {
             setInitialRoute('ConversationsScreen');
           } else {
+            // Clear token if login fails
+            await AsyncStorage.removeItem('authToken');
             setInitialRoute('LoginScreen');
           }
         } else {
@@ -44,6 +48,8 @@ export default function App() {
         }
       } catch (error) {
         console.log('JWT login failed:', error);
+        // Clear token on error
+        await AsyncStorage.removeItem('authToken');
         setInitialRoute('LoginScreen');
       }
     };

@@ -6,7 +6,7 @@ import BottomNavBar from '../components/BottomNavBar';
 import MainHeader from '../components/MainHeader';
 import { useSocket } from '../SocketContext'; // Import the context hook
 import Colors from '../constants/colors';
-import { initConversation } from '../api/AuthAPI';
+import { initConversation } from '../api/ConversationAPI';
 import { getToken } from '../api/TokenAPI';
 
 export default function ConversationsScreen() {

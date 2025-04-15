@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSocket } from '../SocketContext';
 import Colors from '../constants/colors';
-import { text } from '../api/AuthAPI';
+import { text } from '../api/MessageAPI';
 import { getToken } from '../api/TokenAPI';
 
 const ConversationScreen = () => {
