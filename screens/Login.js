@@ -2,14 +2,18 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from 'react-native';
 import React, { useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Colors from '../constants/colors'; 
-import axios from 'axios';
+import Colors from '../constants/colors';
 import { loginUser } from '../api/AuthAPI';
+import { getUserInfo } from '../api/UserAPI';
+import { useUserInfo } from '../contexts/UserInfoContext';
+import { useSocket } from '../contexts/SocketContext';
 
 export default function LoginScreen({ navigation }) {
   const [phone, setPhone] = useState('+84');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const { setUserInfo } = useUserInfo();
+  const { setToken, setIsLoggedIn } = useSocket();
 
   const handleLogin = async () => {
     if (!phone || !password) {
@@ -20,12 +24,24 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
 
     try {
+      // Remove old token before trying to log in
+      await AsyncStorage.removeItem('authToken');
+
+      // Perform login
       const data = await loginUser(phone, password);
       const { token } = data;
 
+      // Save new token
       await AsyncStorage.setItem('authToken', token);
 
-      navigation.replace('ConversationsScreen'); 
+      // Update user info and token in context
+      const userData = await getUserInfo();
+      setUserInfo(userData);
+      setToken(token);
+      setIsLoggedIn(true);
+
+      // Navigate to ConversationsScreen after socket initialization
+      navigation.replace('ConversationsScreen');
     } catch (error) {
       if (error.response) {
         Alert.alert('Đăng nhập thất bại', error.response.data.message || 'Số điện thoại hoặc mật khẩu không đúng');
@@ -36,6 +52,7 @@ export default function LoginScreen({ navigation }) {
       setLoading(false);
     }
   };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Zala</Text>

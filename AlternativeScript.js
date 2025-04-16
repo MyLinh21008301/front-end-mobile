@@ -1,130 +1,430 @@
-import { View, Text, TextInput, FlatList, Image, StyleSheet, TouchableOpacity } from 'react-native';
-import { useEffect, useState } from 'react';
-import Card from '../components/Card';
-import Badge from '../components/Badge';
-import { FontAwesome } from '@expo/vector-icons';
-import Colors from "../constants/colors"; 
-import { useNavigation, useRoute } from '@react-navigation/native';
-import BottomNavBar from '../components/BottomNavBar';
-import MainHeader from '../components/MainHeader';
-import useSocket from '../hooks/useSocket';
-import {getToken} from '../api/TokenAPI';
+import React, { useLayoutEffect, useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  SafeAreaView,
+  Alert,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  sendFriendRequest,
+  acceptFriendRequest,
+  checkFriendStatus,
+  cancelFriendRequest,
+  removeFriend,
+  getFriendRequests,
+  rejectFriendRequest,
+  checkRequestStatus,
+} from '../api/FriendsAPI';
 
-const sample_conversations = [
-  { id: '1', name: 'Phạm Thế Mạnh', message: 'onl đê', time: '54 phút', unread: true, avatar: '' },
-  { id: '2', name: 'Khuê', message: 'Chị ơi hôm nay cô kêu em lên...', time: '2 giờ', unread: true, avatar: '' },
-  { id: '3', name: 'Hưng', message: 'Xu lễ có về không?', time: '3 giờ', unread: true, avatar: '' },
-  { id: '4', name: 'Thuu Hiềnn', message: 'Bạn: [Hình ảnh]', time: '13 giờ', unread: false, avatar: '' },
-  { id: '5', name: 'Có 1 chị gái iêu và 1 em gái Hiề...', message: 'Thúy: Mua sứa về ăn hè', time: '19 giờ', unread: false, avatar: '' },
-  { id: '6', name: 'Cloud của tôi', message: 'Bạn: [Sticker]', time: '19 giờ', unread: false, avatar: '' },
-  { id: '7', name: 'Tran Dong', message: 'e nhớ tháng 5 xuống đây th...', time: '20 giờ', unread: true, avatar: '' },
-  { id: '8', name: 'REACT_DD_CN_10.12_DHKTPM16...', message: 'Hải rời khỏi nhóm.', time: '', unread: false, avatar: '' },
-  { id: '9', name: 'Có 1 chị gái iêu và 1 em gái Hiề...', message: 'Thúy: Mua sứa về ăn hè', time: '19 giờ', unread: false, avatar: '' },
-  { id: '10', name: 'Cloud của tôi', message: 'Bạn: [Sticker]', time: '19 giờ', unread: false, avatar: '' },
-  { id: '11', name: 'Tran Dong', message: 'e nhớ tháng 5 xuống đây th...', time: '20 giờ', unread: true, avatar: '' },
-  { id: '12', name: 'REACT_DD_CN_10.12_DHKTPM16...', message: 'Hải rời khỏi nhóm.', time: '', unread: false, avatar: '' },
-  
-];
+export default function PersonalPageScreen({ route, navigation }) {
+  const { person } = route.params;
+  const [friendStatus, setFriendStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showDropdown, setShowDropdown] = useState(false);
 
-export default function ConversationsScreen() {
-  const [search, setSearch] = useState('');
-  const [jwt, setJwt] = useState(null);
-  const navigation = useNavigation();
+  // Set navigation header options
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+          <Ionicons name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
+      ),
+      headerTitle: 'Profile',
+      headerTitleAlign: 'center',
+      headerStyle: {
+        backgroundColor: '#fff',
+        elevation: 0,
+        shadowOpacity: 0,
+      },
+      headerTitleStyle: {
+        fontSize: 20,
+        fontWeight: '600',
+      },
+    });
+  }, [navigation]);
 
-  // Lấy token bất đồng bộ
+  // Load initial friend status when the component mounts or person.phoneNumber changes
   useEffect(() => {
-    async function fetchToken() {
+    const loadFriendStatus = async () => {
       try {
-        const token = await getToken(); // Chờ Promise giải quyết
-        setJwt(token); // Lưu token vào state
+        setLoading(true);
+        const myPhoneNumber = await AsyncStorage.getItem('phoneNumber');
+        console.log('My phone number:', myPhoneNumber);
+        console.log('Person phone number:', person.phoneNumber);
+
+        if (myPhoneNumber === person.phoneNumber) {
+          setFriendStatus('self');
+          console.log('Friend status set to self');
+          return;
+        }
+
+        const isFriend = await checkFriendStatus(person.phoneNumber);
+        console.log('checkFriendStatus result:', isFriend);
+        if (isFriend) {
+          setFriendStatus('friends');
+          console.log('Friend status set to friends');
+          return;
+        }
+
+        const hasSentRequest = await checkRequestStatus(person.phoneNumber);
+        console.log('checkRequestStatus result:', hasSentRequest);
+        if (hasSentRequest) {
+          setFriendStatus('pending_sent');
+          console.log('Friend status set to pending_sent');
+          return;
+        }
+
+        const requests = await getFriendRequests();
+        console.log('getFriendRequests result:', requests);
+        const incoming = requests.find((req) => req.phoneNumber === person.phoneNumber);
+        setFriendStatus(incoming ? 'pending_received' : null);
+        console.log('Friend status set to:', incoming ? 'pending_received' : null);
       } catch (error) {
-        console.error('Lỗi khi lấy token:', error);
-        // Xử lý lỗi: chuyển hướng đến màn hình đăng nhập
-        navigation.navigate('Login');
+        console.error('Error loading friend status:', error);
+        Alert.alert('Error', 'Could not load friend status.');
+      } finally {
+        setLoading(false);
       }
+    };
+
+    loadFriendStatus();
+  }, [person.phoneNumber]);
+
+  // Action handlers with immediate state updates
+  const handleSendFriendRequest = async () => {
+    try {
+      await sendFriendRequest(person.phoneNumber);
+      setFriendStatus('pending_sent');
+      console.log('Friend request sent, status updated to pending_sent');
+      Alert.alert('Success', 'Friend request sent!');
+    } catch (error) {
+      console.error('Error sending friend request:', error);
+      Alert.alert('Error', 'Could not send friend request.');
     }
-    fetchToken();
-  }, [navigation]); // Thêm navigation vào dependencies để tránh cảnh báo
+  };
 
-  // Khởi tạo socket chỉ khi jwt có giá trị
-  const {conversations, currentConversation } = useSocket(jwt ? 'http://localhost:3002' : null, jwt);
+  const handleAcceptFriendRequest = async () => {
+    try {
+      await acceptFriendRequest(person.phoneNumber);
+      setFriendStatus('friends');
+      console.log('Friend request accepted, status updated to friends');
+      Alert.alert('Success', 'Friend request accepted!');
+    } catch (error) {
+      console.error('Error accepting friend request:', error);
+      Alert.alert('Error', 'Could not accept friend request.');
+    }
+  };
 
+  const handleCancelFriendRequest = async () => {
+    try {
+      await cancelFriendRequest(person.phoneNumber);
+      setFriendStatus(null);
+      console.log('Friend request canceled, status updated to null');
+      Alert.alert('Success', 'Friend request canceled!');
+    } catch (error) {
+      console.error('Error canceling friend request:', error);
+      Alert.alert('Error', 'Could not cancel friend request.');
+    }
+  };
 
-  
-  if (!!jwt) {
-    // return null; // Hoặc có thể hiển thị một loading spinner nếu cần
-    console.log("conversation: {}",conversations)
-  }
-  return (
-    <View style={styles.container}>
-      <MainHeader />
-      <FlatList
-        style={styles.conversationsListContainer}
-        // data={conversations.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))}
-        data={conversations}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <Card style={styles.card}>
-            <Image source={{ uri: sample_conversations[0].avatar }} style={styles.avatar} />
-            <View style={styles.textContainer}>
-              <Text style={styles.name}>{item.id}</Text>
-              <Text style={styles.message}>{item.messages[-1]}</Text>
-            </View>
-            <View style={styles.rightSection}>
-              {item.time ? <Text style={styles.time}>{item.time}</Text> : null}
-              {item.unread ? <Badge style={styles.badge}>3</Badge> : null}
-            </View>
-          </Card>
+  const handleDeclineFriendRequest = async () => {
+    try {
+      await rejectFriendRequest(person.phoneNumber);
+      setFriendStatus(null);
+      console.log('Friend request declined, status updated to null');
+      Alert.alert('Declined', 'Friend request declined.');
+    } catch (error) {
+      console.error('Error declining friend request:', error);
+      Alert.alert('Error', 'Could not decline friend request.');
+    }
+  };
+
+  const handleRemoveFriend = () => {
+    Alert.alert(
+      'Remove Friend',
+      `Are you sure you want to remove ${person.name || 'this person'} as a friend?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeFriend(person.phoneNumber);
+              setFriendStatus(null);
+              setShowDropdown(false);
+              console.log('Friend removed, status updated to null');
+              Alert.alert('Success', 'Friend removed!');
+            } catch (error) {
+              console.error('Error removing friend:', error);
+              Alert.alert('Error', 'Could not remove friend.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Render friend buttons based on friendStatus
+  const renderFriendButton = () => {
+    console.log('Rendering friend button with friendStatus:', friendStatus);
+    if (loading) {
+      return <Text style={styles.buttonText}>Loading...</Text>;
+    }
+    if (friendStatus === 'self') {
+      return null;
+    }
+
+    return (
+      <View style={styles.friendButtonContainer}>
+        {friendStatus === 'friends' ? (
+          <>
+            <TouchableOpacity
+              style={[styles.friendButton, styles.friendsButton]}
+              onPress={() => setShowDropdown(!showDropdown)}
+            >
+              <Text style={styles.buttonText}>Friends</Text>
+              <Ionicons
+                name={showDropdown ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color="#fff"
+                style={styles.dropdownArrow}
+              />
+            </TouchableOpacity>
+            {showDropdown && (
+              <View style={styles.dropdownMenu}>
+                <TouchableOpacity style={styles.dropdownItem} onPress={handleRemoveFriend}>
+                  <Text style={styles.dropdownText}>Remove Friend</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
+        ) : friendStatus === 'pending_sent' ? (
+          <TouchableOpacity
+            style={[styles.friendButton, styles.pendingButton]}
+            onPress={handleCancelFriendRequest}
+          >
+            <Text style={styles.buttonText}>Cancel Request</Text>
+          </TouchableOpacity>
+        ) : friendStatus === 'pending_received' ? (
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[styles.friendButton, styles.acceptButton]}
+              onPress={handleAcceptFriendRequest}
+            >
+              <Text style={styles.buttonText}>Accept</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.friendButton, styles.declineButton]}
+              onPress={handleDeclineFriendRequest}
+            >
+              <Text style={styles.buttonText}>Decline</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.friendButton, styles.addButton]}
+            onPress={handleSendFriendRequest}
+          >
+            <Text style={styles.buttonText}>Add Friend</Text>
+          </TouchableOpacity>
         )}
-        contentContainerStyle={{ paddingBottom: 70 }}
-        showsVerticalScrollIndicator={false}
-      />
+      </View>
+    );
+  };
 
-      <BottomNavBar />
-    </View>
+  // Main render
+  return (
+    <SafeAreaView style={styles.safeContainer}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.backgroundContainer}>
+          {person.backgroundImg ? (
+            <Image
+              source={{ uri: person.backgroundImg }}
+              style={styles.backgroundImg}
+              resizeMode="cover"
+              onError={(e) => console.log('Background image error:', e.nativeEvent.error)}
+            />
+          ) : (
+            <View style={styles.backgroundPlaceholder} />
+          )}
+        </View>
+
+        <View style={styles.profileContainer}>
+          <Image
+            source={{ uri: person.baseImg }}
+            style={styles.avatar}
+            resizeMode="cover"
+            defaultSource={require('../assets/icon.png')}
+            onError={(e) => console.log('Avatar image error:', e.nativeEvent.error)}
+          />
+
+          <Text style={styles.name}>{person.name || 'Unknown'}</Text>
+          <Text style={styles.phone}>{person.phoneNumber || 'N/A'}</Text>
+
+          {renderFriendButton()}
+
+          <View style={styles.infoSection}>
+            <Text style={styles.label}>Status: {person.status || 'N/A'}</Text>
+            {person.bio && <Text style={styles.label}>Bio: {person.bio}</Text>}
+            {person.dateOfBirth && (
+              <Text style={styles.label}>Birthday: {person.dateOfBirth}</Text>
+            )}
+            <Text style={styles.label}>
+              Gender: {person.male !== undefined ? (person.male ? 'Male' : 'Female') : 'N/A'}
+            </Text>
+            {person.lastOnlineTime && (
+              <Text style={styles.label}>
+                Last Online: {new Date(person.lastOnlineTime).toLocaleString()}
+              </Text>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
+// Styles
 const styles = StyleSheet.create({
+  safeContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#fff',
   },
-  conversationsListContainer: {
-    paddingHorizontal: 16,
+  contentContainer: {
+    flexGrow: 1,
+    paddingBottom: 20,
   },
-  card: {
-    marginBottom: 12,
-    flexDirection: 'row',
+  backgroundContainer: {
+    width: '100%',
+    height: 280,
+  },
+  backgroundImg: {
+    width: '100%',
+    height: '100%',
+  },
+  backgroundPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#ccc',
+  },
+  profileContainer: {
     alignItems: 'center',
+    paddingHorizontal: 20,
+    marginTop: -70,
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 12,
-    backgroundColor: "#000",
-  },
-  textContainer: {
-    flex: 1,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 4,
+    borderColor: '#fff',
+    marginBottom: 15,
+    backgroundColor: '#eee',
   },
   name: {
-    color: '#000',
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '600',
   },
-  message: {
-    color: '#a3a3a3',
-    fontSize: 12,
+  phone: {
+    fontSize: 16,
+    color: '#888',
+    marginBottom: 12,
   },
-  rightSection: {
-    alignItems: 'flex-end',
+  infoSection: {
+    marginTop: 25,
+    width: '100%',
+    paddingHorizontal: 20,
   },
-  time: {
-    color: '#737373',
-    fontSize: 10,
+  label: {
+    fontSize: 16,
+    marginBottom: 10,
+    color: '#333',
   },
-  badge: {
-    backgroundColor: '#ef4444',
-    marginTop: 4,
+  friendButtonContainer: {
+    alignItems: 'center',
+    position: 'relative',
+  },
+  friendButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButton: {
+    backgroundColor: '#007bff',
+  },
+  pendingButton: {
+    backgroundColor: '#6c757d',
+  },
+  acceptButton: {
+    backgroundColor: '#28a745',
+    flex: 1,
+  },
+  declineButton: {
+    backgroundColor: '#dc3545',
+    flex: 1,
+  },
+  friendsButton: {
+    backgroundColor: '#007bff',
+    flexDirection: 'row',
+    paddingRight: 10,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  dropdownArrow: {
+    marginLeft: 8,
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: 50,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 1000,
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  dropdownText: {
+    color: '#dc3545',
+    fontSize: 16,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+    marginTop: 12,
+  },
+  headerButton: {
+    marginLeft: 10,
   },
 });

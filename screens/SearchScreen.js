@@ -13,7 +13,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { findPeople, getSavedQueries } from '../api/FriendAPI';
+import { findPeople, getSavedQueries } from '../api/FriendsAPI';
 
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
@@ -308,6 +308,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f2f2f2',
     padding: 10,
     borderRadius: 10,
+    marginRight: 10,
   },
   avatar: {
     width: 50,
