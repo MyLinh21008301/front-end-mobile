@@ -13,7 +13,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { findPeople, getSavedQueries } from '../api/FriendsAPI';
+import { findPeople, getSavedQueries } from '../apis/FriendsAPI';
 
 export default function SearchScreen() {
   const [query, setQuery] = useState('');

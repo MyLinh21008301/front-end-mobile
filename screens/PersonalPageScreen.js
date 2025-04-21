@@ -20,7 +20,7 @@ import {
   getFriendRequests,
   rejectFriendRequest,
   checkRequestStatus,
-} from '../api/FriendsAPI';
+} from '../apis/FriendsAPI';
 
 export default function PersonalPageScreen({ route, navigation }) {
   const { person } = route.params;

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, SectionList, Image, TouchableOpacity, ActivityI
 import { useNavigation } from '@react-navigation/native';
 import BottomNavBar from '../components/BottomNavBar';
 import MainHeader from '../components/MainHeader';
-import { getFriendsList, getFriendRequests, acceptFriendRequest, rejectFriendRequest } from '../api/FriendsAPI';
+import { getFriendsList, getFriendRequests, acceptFriendRequest, rejectFriendRequest } from '../apis/FriendsAPI';
 
 export default function ContactsScreen() {
   const [friends, setFriends] = useState([]);

@@ -7,7 +7,7 @@ export default function BottomNavBar() {
   const route = useRoute();
 
   const navItems = [
-    { name: 'ConversationsScreen', icon: 'chatbubble-outline', activeIcon: 'chatbubble' },
+    { name: 'ConversationListScreen', icon: 'chatbubble-outline', activeIcon: 'chatbubble' },
     { name: 'ContactsScreen', icon: 'people-outline', activeIcon: 'people' },
     { name: 'PersonalScreen', icon: 'person-outline', activeIcon: 'person' },
   ];

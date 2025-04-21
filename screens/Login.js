@@ -3,8 +3,8 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from 'reac
 import React, { useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Colors from '../constants/colors';
-import { loginUser } from '../api/AuthAPI';
-import { getUserInfo } from '../api/UserAPI';
+import { loginUser } from '../apis/AuthAPI';
+import { getUserInfo } from '../apis/UserAPI';
 import { useUserInfo } from '../contexts/UserInfoContext';
 import { useSocket } from '../contexts/SocketContext';
 
@@ -41,7 +41,7 @@ export default function LoginScreen({ navigation }) {
       setIsLoggedIn(true);
 
       // Navigate to ConversationsScreen after socket initialization
-      navigation.replace('ConversationsScreen');
+      navigation.replace('ConversationListScreen');
     } catch (error) {
       if (error.response) {
         Alert.alert('Đăng nhập thất bại', error.response.data.message || 'Số điện thoại hoặc mật khẩu không đúng');

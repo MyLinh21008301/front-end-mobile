@@ -65,29 +65,41 @@ const useSocket = (url, token) => {
       console.log("New message:", message);
       setState((prev) => {
         if (prev.messages.some((m) => m.id === message.id)) return prev;
-        if (prev.currentConversation?.id !== message.conversationId) {
+    
+        // Update conversations with the new lastMessage
+        const updatedConversations = prev.conversations.map((conv) => {
+          if (conv.id === message.conversationId) {
+            return {
+              ...conv,
+              lastMessage: message,
+              updatedAt: message.createdAt, // Optional: update timestamp if server doesn't
+            };
+          }
+          return conv;
+        });
+    
+        if (prev.currentConversation?.id === message.conversationId) {
           return {
             ...prev,
+            conversations: updatedConversations,
+            currentConversation: {
+              ...prev.currentConversation,
+              messageDetails: [...prev.currentConversation.messageDetails, message],
+              lastMessage: message, // Ensure currentConversation stays in sync
+            },
+            messages: [...prev.messages, message],
+          };
+        } else {
+          return {
+            ...prev,
+            conversations: updatedConversations,
             messages: [...prev.messages, message],
             unreadCounts: {
               ...prev.unreadCounts,
-              [message.conversationId]:
-                (prev.unreadCounts[message.conversationId] || 0) + 1,
+              [message.conversationId]: (prev.unreadCounts[message.conversationId] || 0) + 1,
             },
           };
         }
-        return {
-          ...prev,
-          currentConversation: {
-            ...prev.currentConversation,
-            messageDetails: [            
-              ...prev.currentConversation.messageDetails,
-              message,
-              
-            ],
-          },
-          messages: [...prev.messages, message],
-        };
       });
     };
 
