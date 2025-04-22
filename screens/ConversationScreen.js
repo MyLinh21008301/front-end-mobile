@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,15 +10,18 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Alert,
 } from 'react-native';
-import { useSocket } from '../contexts/SocketContext';
-import { useUserInfo } from '../contexts/UserInfoContext';
-import Colors from '../constants/colors';
+import { initConversation } from '../api/ConversationAPI';
 import { text } from '../api/MessageAPI';
 import { getToken } from '../api/TokenAPI';
 import { findFirstPersonByPhone } from '../api/FriendsAPI';
+import { getUserInfo } from '../api/UserAPI'; // Import getUserInfo
 import { Ionicons } from '@expo/vector-icons';
+import axios from 'axios';
+import BASE_URL from '../api/BaseURL';
 
+// Component hiển thị từng tin nhắn (giữ nguyên)
 const MessageItem = ({ item, myInfo, friendInfo }) => {
   const isMyMessage = item.senderId === myInfo?.phoneNumber;
   const sender = isMyMessage ? myInfo : friendInfo;
@@ -71,38 +74,123 @@ const MessageItem = ({ item, myInfo, friendInfo }) => {
   );
 };
 
-const ConversationScreen = ({ navigation }) => {
-  const { currentConversation, sendTextMessage } = useSocket();
-  const { userInfo } = useUserInfo();
-  const [friendInfo, setFriendInfo] = useState(null);
+// API để tạo cuộc hội thoại mới
+const createConversation = async (jwt, userPhone, friendPhone) => {
+  try {
+    console.log('Creating conversation between', userPhone, 'and', friendPhone);
+    const response = await axios.post(
+      `${BASE_URL}/conversations/create`, // Sử dụng endpoint từ mã cũ
+      { friendPhone },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${jwt}`,
+        },
+      }
+    );
+    console.log('Create conversation response:', response.data);
+    return response.data; // Giả định backend trả về ConversationDetailDto
+  } catch (error) {
+    console.error('Error creating conversation:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+const ConversationScreen = ({ route, navigation }) => {
+  const { conversationId, friendPhone } = route.params; // userPhone không cần từ route.params
+  const [jwt, setJwt] = useState(null);
+  const [messages, setMessages] = useState([]);
   const [messageText, setMessageText] = useState('');
+  const [friendInfo, setFriendInfo] = useState(null);
+  const [myInfo, setMyInfo] = useState(null);
+  const [conversationExists, setConversationExists] = useState(false);
+  const [effectiveConversationId, setEffectiveConversationId] = useState(conversationId);
   const flatListRef = useRef(null);
 
-  const messages = currentConversation?.messageDetails || [];
-  const myInfo = userInfo;
-
+  // Khởi tạo thông tin người dùng và bạn bè
   useEffect(() => {
-    const fetchFriendInfo = async () => {
-      if (currentConversation?.id && myInfo?.phoneNumber) {
-        try {
-          const [id1, id2] = currentConversation.id.split('_');
-          const friendId = id1 === myInfo.phoneNumber ? id2 : id1;
-          const friendData = await findFirstPersonByPhone(friendId);
-          setFriendInfo(friendData || { phoneNumber: friendId });
-        } catch (error) {
-          console.error('Error fetching friend info:', error);
-          setFriendInfo({ phoneNumber: 'Unknown' });
+    const initialize = async () => {
+      try {
+        const token = await getToken();
+        if (!token) {
+          Alert.alert('Lỗi', 'Không tìm thấy token xác thực.');
+          navigation.goBack();
+          return;
         }
+        setJwt(token);
+
+        // Lấy thông tin người dùng từ getUserInfo
+        const userData = await getUserInfo();
+        if (!userData || !userData.phoneNumber) {
+          Alert.alert('Lỗi', 'Không thể lấy thông tin người dùng.');
+          navigation.goBack();
+          return;
+        }
+        setMyInfo({ phoneNumber: userData.phoneNumber });
+
+        // Lấy thông tin bạn bè
+        if (friendPhone) {
+          try {
+            const friendData = await findFirstPersonByPhone(friendPhone);
+            setFriendInfo(friendData || { phoneNumber: friendPhone });
+          } catch (error) {
+            console.error('Error fetching friend info:', error);
+            setFriendInfo({ phoneNumber: friendPhone });
+          }
+        } else {
+          Alert.alert('Lỗi', 'Không tìm thấy thông tin bạn bè.');
+          navigation.goBack();
+          return;
+        }
+
+        // Thử khởi tạo cuộc hội thoại
+        let convo = await tryInitConversation(token, conversationId);
+        if (!convo) {
+          console.log('Conversation not found, trying alternate ID');
+          const alternateId = `${friendPhone}_${userData.phoneNumber}`;
+          convo = await tryInitConversation(token, alternateId);
+          if (convo) {
+            setEffectiveConversationId(alternateId);
+          } else {
+            // Tạo cuộc hội thoại mới nếu cả hai ID đều không tồn tại
+            console.log('Creating new conversation');
+            try {
+              convo = await createConversation(token, userData.phoneNumber, friendPhone);
+              setEffectiveConversationId(convo.id);
+            } catch (createError) {
+              Alert.alert(
+                'Lỗi',
+                'Không thể tạo hội thoại mới. Vui lòng kiểm tra kết nối hoặc thử lại sau.'
+              );
+              return;
+            }
+          }
+        }
+        setConversationExists(true);
+        setMessages(convo.messageDetails || []);
+      } catch (error) {
+        console.error('Error initializing conversation:', error.response?.data || error);
+        Alert.alert('Lỗi', 'Không thể khởi tạo hội thoại. Vui lòng thử lại sau.');
       }
     };
 
-    fetchFriendInfo();
-  }, [currentConversation, myInfo]);
+    initialize();
+  }, [conversationId, friendPhone, navigation]);
 
-  // Scroll to bottom on initial mount and when messages change
+  const tryInitConversation = async (jwt, id) => {
+    try {
+      console.log('Trying to initialize conversation with ID:', id);
+      const convo = await initConversation(jwt, id);
+      return convo;
+    } catch (error) {
+      console.log('Failed to initialize conversation with ID:', id);
+      return null;
+    }
+  };
+
+  // Cuộn xuống cuối danh sách tin nhắn khi messages thay đổi
   useEffect(() => {
     if (flatListRef.current && messages.length > 0) {
-      // Use setTimeout to ensure FlatList has rendered
       setTimeout(() => {
         flatListRef.current.scrollToEnd({ animated: false });
       }, 0);
@@ -110,22 +198,29 @@ const ConversationScreen = ({ navigation }) => {
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (messageText.trim() === '') return;
+    if (!messageText.trim() || !jwt || !effectiveConversationId) return;
+
+    if (!conversationExists) {
+      Alert.alert(
+        'Thông báo',
+        `Vui lòng chờ hội thoại với ${friendInfo?.name || friendPhone} được khởi tạo.`
+      );
+      return;
+    }
 
     try {
-      const jwt = await getToken();
-      const success = await text(jwt, currentConversation.id, messageText);
-      if (success) {
-        setMessageText('');
-        // Scroll to bottom after sending a message
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 0);
-      } else {
-        console.error('Failed to send message');
-      }
+      const response = await text(jwt, effectiveConversationId, messageText);
+      setMessages((prev) => [...prev, response]);
+      setMessageText('');
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 0);
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error sending message:', error.response?.data || error);
+      Alert.alert(
+        'Lỗi',
+        `Không thể gửi tin nhắn đến ${friendInfo?.name || friendPhone}. Vui lòng thử lại sau.`
+      );
     }
   };
 
@@ -135,6 +230,7 @@ const ConversationScreen = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#000" />
@@ -159,7 +255,7 @@ const ConversationScreen = ({ navigation }) => {
         </View>
       </View>
 
-
+      {/* Danh sách tin nhắn */}
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -173,145 +269,59 @@ const ConversationScreen = ({ navigation }) => {
         )}
         contentContainerStyle={styles.messageList}
         onContentSizeChange={() => {
-          // Scroll to bottom when content size changes (e.g., new messages)
           flatListRef.current?.scrollToEnd({ animated: true });
         }}
         onLayout={() => {
-          // Scroll to bottom when FlatList is first laid out
           flatListRef.current?.scrollToEnd({ animated: false });
         }}
       />
 
+      {/* Input gửi tin nhắn */}
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.textInput}
           value={messageText}
           onChangeText={setMessageText}
-          placeholder="Type a message..."
+          placeholder={conversationExists ? 'Nhập tin nhắn...' : 'Đang chờ khởi tạo hội thoại...'}
           multiline
           placeholderTextColor="#999"
+          editable={conversationExists}
         />
-        <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
-          <Text style={styles.sendButtonText}>Send</Text>
+        <TouchableOpacity
+          style={[styles.sendButton, !conversationExists && styles.sendButtonDisabled]}
+          onPress={handleSendMessage}
+          disabled={!conversationExists}
+        >
+          <Text style={styles.sendButtonText}>Gửi</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
 };
 
+// Styles (giữ nguyên)
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderTopColor: '#eee',
-    borderBottomColor: '#eee',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginHorizontal: 8,
-  },
-  headerInfo: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  headerName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  headerStatus: {
-    fontSize: 13,
-    color: 'gray',
-  },
-  
-  messageList: {
-    padding: 16,
-    paddingBottom: 20,
-  },
-  messageBubble: {
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-    maxWidth: '80%',
-  },
-  yourMessage: {
-    backgroundColor: '#007aff',
-    alignSelf: 'flex-end',
-  },
-  otherMessage: {
-    backgroundColor: '#e0e0e0',
-    alignSelf: 'flex-start',
-  },
-  messageHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  messageAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 8,
-  },
-  messageSenderName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  messageText: {
-    fontSize: 16,
-    color: '#000',
-  },
-  messageTime: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-    alignSelf: 'flex-end',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    padding: 10,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    alignItems: 'center',
-  },
-  textInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 20,
-    padding: 10,
-    maxHeight: 100,
-    marginRight: 10,
-    fontSize: 16,
-  },
-  sendButton: {
-    backgroundColor: '#007aff',
-    borderRadius: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    justifyContent: 'center',
-  },
-  sendButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderBottomColor: '#ddd' },
+  backButton: { padding: 5 },
+  headerAvatar: { width: 40, height: 40, borderRadius: 20, marginHorizontal: 10 },
+  headerInfo: { flex: 1 },
+  headerName: { fontSize: 16, fontWeight: 'bold' },
+  headerStatus: { fontSize: 12, color: '#666' },
+  messageList: { padding: 10 },
+  messageBubble: { marginVertical: 5, padding: 10, borderRadius: 10, maxWidth: '80%' },
+  yourMessage: { backgroundColor: '#ccc', alignSelf: 'flex-end' },
+  otherMessage: { backgroundColor: '#f1f1f1', alignSelf: 'flex-start' },
+  messageHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
+  messageAvatar: { width: 24, height: 24, borderRadius: 12, marginRight: 5 },
+  messageSenderName: { fontSize: 12, fontWeight: 'bold' },
+  messageText: { fontSize: 14 },
+  messageTime: { fontSize: 10, color: '#666', marginTop: 5, alignSelf: 'flex-end' },
+  inputContainer: { flexDirection: 'row', padding: 10, borderTopWidth: 1, borderTopColor: '#ddd' },
+  textInput: { flex: 1, borderRadius: 20, padding: 10, backgroundColor: '#f1f1f1', maxHeight: 100 },
+  sendButton: { backgroundColor: '#000', borderRadius: 20, padding: 10, marginLeft: 10, justifyContent: 'center' },
+  sendButtonDisabled: { backgroundColor: '#ccc' },
+  sendButtonText: { color: '#fff', fontWeight: 'bold' },
 });
 
 export default ConversationScreen;

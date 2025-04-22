@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
+import Colors from '../constants/colors';
 
 const MainHeader = () => {
   const navigation = useNavigation();
@@ -13,22 +14,17 @@ const MainHeader = () => {
 
   return (
     <View style={styles.container}>
-      {/* Left: Back Button */}
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
-        <Ionicons name="arrow-back" size={24} color="#000" />
-      </TouchableOpacity>
-
       {/* Center: Search Bar */}
       <TouchableOpacity
-        style={styles.searchBar}
+        style={styles.searchContainer}
         onPress={() => navigation.navigate('SearchScreen')}
       >
-        <Ionicons name="search" size={24} color="gray" style={{ marginRight: 6 }} />
+          <Feather name="search" size={20} color="#888" style={styles.searchIcon} />
         <TextInput
           editable={false}
           placeholder="Search..."
           placeholderTextColor="gray"
-          style={{ color: 'gray', flex: 1 }}
+          style={styles.searchInput}
           pointerEvents="none"
         />
       </TouchableOpacity>
@@ -46,7 +42,7 @@ export default MainHeader;
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: '#fff', 
+    backgroundColor: Colors.background,
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderTopColor: '#eee',
@@ -67,5 +63,21 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 10,
     height: 36,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    margin: 10,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 16,
   },
 });

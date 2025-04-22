@@ -9,32 +9,65 @@ import {
   ScrollView,
   SafeAreaView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useUserInfo } from '../contexts/UserInfoContext'; // Adjust path if needed
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
 export default function PersonalScreen({ navigation }) {
   const userInfo = useUserInfo().userInfo;
   console.log('User Info:', userInfo); // Debugging line to check userInfo
 
   // Define the logout function
-  const handleLogout = async () => {
-    try {
-      // Remove JWT token and searched history from AsyncStorage
-      await AsyncStorage.removeItem('authToken');
-      await AsyncStorage.removeItem('searchQueries');
-      await AsyncStorage.removeItem('recentPeople');
-      // Reset navigation stack to navigate to Login screen
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'LoginScreen' }],
-      });
-    } catch (error) {
-      console.error('Error during logout:', error);
-    }
-  };
+  // const handleLogout = async () => {
+  //   try {
+  //     // Remove JWT token and searched history from AsyncStorage
+  //     await AsyncStorage.removeItem('authToken');
+  //     await AsyncStorage.removeItem('searchQueries');
+  //     await AsyncStorage.removeItem('recentPeople');
+  //     // Reset navigation stack to navigate to Login screen
+  //     navigation.reset({
+  //       index: 0,
+  //       routes: [{ name: 'LoginScreen' }],
+  //     });
+  //   } catch (error) {
+  //     console.error('Error during logout:', error);
+  //   }
+  // };
 
+
+ const handleLogout = async (navigation) => {
+  Alert.alert(
+    "Xác nhận",
+    "Bạn có chắc chắn muốn đăng xuất không?",
+    [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Đăng xuất",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            // Xóa token và lịch sử tìm kiếm
+            await AsyncStorage.removeItem('authToken');
+            await AsyncStorage.removeItem('searchQueries');
+            await AsyncStorage.removeItem('recentPeople');
+
+            console.log("Đăng xuất thành công");
+
+            // Reset navigation về Login
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'LoginScreen' }],
+            });
+          } catch (error) {
+            console.error('Lỗi khi đăng xuất:', error);
+          }
+        },
+      },
+    ],
+    { cancelable: true }
+  );
+};
   // Configure the navigation header with back and logout buttons
   useLayoutEffect(() => {
     navigation.setOptions({

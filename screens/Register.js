@@ -14,7 +14,7 @@ import { FontAwesome } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import axios from 'axios';
 import Colors from "../constants/colors"; 
-import { registerUser } from '../api/AuthAPI'; 
+import { registerUser } from '../api/authApi.js'; 
 
 
 

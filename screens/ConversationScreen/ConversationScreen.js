@@ -1,0 +1,166 @@
+import React, { useEffect, useState, useRef } from 'react';
+import {
+  View,
+  FlatList,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { useSocket } from '../../contexts/SocketContext';
+import { useUserInfo } from '../../contexts/UserInfoContext';
+import { findFirstPersonByPhone } from '../../api/FriendsAPI';
+import Colors from '../../constants/colors';
+import MessageItem from './components/MessageItemComponent';
+import ConversationHeader from './components/ConversationHeaderComponent';
+import MessageInput from './components/MessageInputComponent';
+
+const ConversationScreen = ({ route, navigation }) => {
+  const { currentConversation, socket } = useSocket();
+  const { userInfo } = useUserInfo();
+  const [participantsInfo, setParticipantsInfo] = useState({});
+  const [headerInfo, setHeaderInfo] = useState(null);
+  const [messages, setMessages] = useState(currentConversation?.messageDetails || []);
+  const flatListRef = useRef(null);
+  const myInfo = userInfo;
+
+  useEffect(() => {
+    setMessages(currentConversation?.messageDetails || []);
+  }, [currentConversation]);
+
+  // Lắng nghe sự kiện WebSocket
+  useEffect(() => {
+    // Sự kiện tin nhắn bị thu hồi
+    socket.on('message_recalled', (data) => {
+      if (data.conversationId === currentConversation?.id) {
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg.id === data.messageId ? { ...msg, isRecalled: true } : msg
+          )
+        );
+      }
+    });
+
+    // Sự kiện reaction được thêm
+    socket.on('reaction_added', (data) => {
+      if (data.conversationId === currentConversation?.id) {
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg.id === data.messageId ? { ...msg, reactions: data.reactions } : msg
+          )
+        );
+      }
+    });
+
+    return () => {
+      socket.off('message_recalled');
+      socket.off('reaction_added');
+    };
+  }, [socket, currentConversation]);
+
+  useEffect(() => {
+    const fetchParticipantsInfo = async () => {
+      if (currentConversation && myInfo?.phoneNumber) {
+        const participants = currentConversation.participants.filter(
+          (p) => p !== myInfo.phoneNumber
+        );
+
+        try {
+          const participantsData = await Promise.all(
+            participants.map((phone) =>
+              findFirstPersonByPhone(phone).catch(() => null)
+            )
+          );
+          const participantsInfoMap = participants.reduce(
+            (acc, phone, index) => {
+              const data = participantsData[index];
+              acc[phone] = data || { phoneNumber: phone };
+              return acc;
+            },
+            {}
+          );
+          setParticipantsInfo(participantsInfoMap);
+
+          if (currentConversation.type === 'private') {
+            const friendPhone = participants[0];
+            setHeaderInfo(participantsInfoMap[friendPhone]);
+          } else {
+            setHeaderInfo({
+              name: currentConversation.conversationName,
+              avatar: currentConversation.conversationImgUrl,
+              isGroup: true,
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching participants info:', error);
+          if (currentConversation.type === 'private') {
+            const friendPhone = participants[0];
+            setHeaderInfo({ phoneNumber: friendPhone });
+          } else {
+            setHeaderInfo({ name: 'Group', avatar: null, isGroup: true });
+          }
+        }
+      }
+    };
+    fetchParticipantsInfo();
+  }, [currentConversation, myInfo]);
+
+  useEffect(() => {
+    if (flatListRef.current && messages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current.scrollToEnd({ animated: false });
+      }, 0);
+    }
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 0);
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
+      <ConversationHeader navigation={navigation} headerInfo={headerInfo} />
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <MessageItem
+            item={item}
+            myInfo={myInfo}
+            participantsInfo={participantsInfo}
+          />
+        )}
+        contentContainerStyle={styles.messageList}
+        onContentSizeChange={() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }}
+        onLayout={() => {
+          flatListRef.current?.scrollToEnd({ animated: false });
+        }}
+      />
+      <MessageInput
+        conversationId={currentConversation?.id}
+        onMessageSent={scrollToBottom}
+      />
+    </KeyboardAvoidingView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  messageList: {
+    padding: 16,
+    paddingBottom: 20,
+  },
+});
+
+export default ConversationScreen;

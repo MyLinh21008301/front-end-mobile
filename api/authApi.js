@@ -41,17 +41,40 @@ export const loginUser = async (phone, password) => {
   }
 };
 
+// export const loginWithJWT = async (jwt) => {
+//   try {
+//     const response = await axios.post(AUTH_API.loginWithJWT, { jwt }, {
+//       headers: {
+//         'Content-Type': 'application/json',
+//       },
+//     });
+//     return response.data;
+//   } catch (error) {
+//     console.error('Lỗi đăng nhập với JWT:', error.response?.data || error.message);
+//     throw error;
+//   }
+// };
+
 export const loginWithJWT = async (jwt) => {
   try {
-    const response = await axios.post(AUTH_API.loginWithJWT, { jwt }, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    if (!jwt) {
+      console.log('Không có JWT nên không gọi loginWithJWT');
+      return null;
+    }
+
+    const response = await axios.post(
+      AUTH_API.loginWithJWT,
+      {}, // Không gửi jwt trong body
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwt}`, // Gửi jwt trong header
+        },
+      }
+    );
     return response.data;
   } catch (error) {
     console.error('Lỗi đăng nhập với JWT:', error.response?.data || error.message);
     throw error;
   }
 };
-

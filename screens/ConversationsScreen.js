@@ -1,4 +1,4 @@
-import { View, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, FlatList, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import BottomNavBar from '../components/BottomNavBar';
 import MainHeader from '../components/MainHeader';
@@ -7,27 +7,41 @@ import Colors from '../constants/colors';
 import { initConversation } from '../api/ConversationAPI';
 import { getToken } from '../api/TokenAPI';
 import { findFirstPersonByPhone } from '../api/FriendsAPI';
-import { Image, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { useUserInfo } from '../contexts/UserInfoContext';
 
 export default function ConversationsScreen() {
   const navigation = useNavigation();
-  const { conversations } = useSocket();
+  const { conversations: socketConversations } = useSocket();
   const { userInfo } = useUserInfo();
   const [isLoading, setIsLoading] = useState(true);
   const [conversationData, setConversationData] = useState([]);
 
   useEffect(() => {
     const fetchAllData = async () => {
-      if (!userInfo?.phoneNumber || !conversations?.length) {
+      if (!userInfo?.phoneNumber) {
         setIsLoading(false);
         return;
       }
 
       try {
         const jwt = await getToken();
+        if (!jwt) {
+          setIsLoading(false);
+          return;
+        }
+
+        // Dùng dữ liệu tĩnh từ DynamoDB nếu socket không gửi conversations
+        const conversations = socketConversations?.length
+          ? socketConversations
+          : [{ id: "+8433390901_+8433667701" }]; // Dữ liệu tĩnh từ DynamoDB
+
+        if (!conversations?.length) {
+          setIsLoading(false);
+          return;
+        }
+
         const data = await Promise.all(
           conversations.map(async (conversation) => {
             const [id1, id2] = conversation.id.split('_');
@@ -63,7 +77,7 @@ export default function ConversationsScreen() {
     };
 
     fetchAllData();
-  }, [conversations, userInfo?.phoneNumber]);
+  }, [socketConversations, userInfo?.phoneNumber]);
 
   if (isLoading) {
     return (
@@ -80,6 +94,15 @@ export default function ConversationsScreen() {
   return (
     <View style={styles.container}>
       <MainHeader />
+      <View style={styles.headerContainer}>
+        <Text style={styles.headerTitle}>Conversations</Text>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('ContactsScreen', { startNewChat: true })}
+          style={styles.newChatButton}
+        >
+          <Ionicons name="chatbubble-ellipses-outline" size={24} color={Colors.primary} />
+        </TouchableOpacity>
+      </View>
       <FlatList
         style={styles.conversationsListContainer}
         data={conversationData}
@@ -100,13 +123,12 @@ export default function ConversationsScreen() {
         contentContainerStyle={{ paddingBottom: 70 }}
         showsVerticalScrollIndicator={false}
       />
-      <BottomNavBar />
+      {/* <BottomNavBar /> */}
     </View>
   );
 }
 
 const ConversationItem = ({ conversation, friendInfo, latestMessage, myPhoneNumber, onPress }) => {
-  // Determine the sender prefix for the latest message
   const getSenderPrefix = () => {
     if (!latestMessage) return '';
     return latestMessage.senderId === myPhoneNumber
@@ -183,6 +205,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+    paddingBottom: 60,
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  newChatButton: {
+    padding: 5,
   },
   loadingContainer: {
     flex: 1,

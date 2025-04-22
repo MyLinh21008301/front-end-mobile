@@ -1,4 +1,3 @@
-// TokenAPI.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const getToken = async () => {
@@ -7,7 +6,7 @@ export const getToken = async () => {
     if (token !== null) {
       return token;
     } else {
-      console.error('No token found');
+      console.log('No token found in AsyncStorage'); 
       return null;  // Token not found
     }
   } catch (error) {
