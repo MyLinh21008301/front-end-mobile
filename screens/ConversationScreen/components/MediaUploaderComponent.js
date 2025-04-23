@@ -1,114 +1,89 @@
-// MediaUploader.js
-import React, { useState, useEffect, useRef } from 'react';
-import { TouchableOpacity, Alert, Platform, View } from 'react-native';
+import React, { useRef } from 'react';
+import { TouchableOpacity, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { getToken } from '../../../apis/TokenAPI';
 import { sendFile } from '../../../apis/MessageAPI';
 
 const MediaUploader = ({ conversationId, onUploadComplete, styles }) => {
-  const [documentPickerAvailable, setDocumentPickerAvailable] = useState(false);
   const fileInputRef = useRef(null);
-  
-  useEffect(() => {
-    // Check if DocumentPicker is available for native platforms
-    // For web, we'll use an alternative approach
-    if (Platform.OS !== 'web') {
-      try {
-        const DocumentPicker = require('react-native-document-picker').default;
-        setDocumentPickerAvailable(true);
-      } catch (error) {
-        console.warn('DocumentPicker not available for native:', error);
-        setDocumentPickerAvailable(false);
-      }
-    } else {
-      // On web, we always have file picking capabilities
-      setDocumentPickerAvailable(true);
-    }
-  }, []);
 
-  const openCamera = () => {
-    launchCamera({ mediaType: 'photo' }, (response) => {
-      if (response.didCancel) {
-        console.log('User cancelled camera');
-      } else if (response.errorCode) {
-        console.log('Camera Error: ', response.errorMessage);
-        Alert.alert('Error', 'Failed to open camera');
-      } else if (response.assets && response.assets[0]) {
-        uploadMedia(response.assets[0]);
-      }
+  const openCamera = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Error', 'Camera permission is required to take photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 1,
     });
+
+    if (result.canceled) {
+      console.log('User cancelled camera');
+    } else if (result.assets && result.assets[0]) {
+      uploadMedia(result.assets[0]); // Pass asset directly
+    }
   };
 
-  const openGallery = () => {
-    const options = {
-      mediaType: Platform.OS === 'web' ? 'photo' : 'mixed',
-      selectionLimit: 1
-    };
-  
-    launchImageLibrary(options, (response) => {
-      if (response.didCancel) {
-        console.log('User cancelled gallery');
-      } else if (response.errorCode) {
-        console.log('Gallery Error: ', response.errorMessage);
-        Alert.alert('Error', 'Failed to open gallery');
-      } else if (response.assets && response.assets[0]) {
-        uploadMedia(response.assets[0]);
-      }
+  const openGallery = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Error', 'Gallery permission is required to select media.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 1,
+      selectionLimit: 1,
     });
+
+    console.log('Result upload file:', result);
+
+    if (result.canceled) {
+      console.log('User cancelled gallery');
+    } else if (result.assets && result.assets[0]) {
+      console.log('Selected file:', result.assets[0]);
+      uploadMedia(result.assets[0]); // Pass asset directly
+    }
   };
 
   const openFilePicker = async () => {
     if (Platform.OS === 'web') {
-      // On web, trigger the hidden file input
       if (fileInputRef.current) {
         fileInputRef.current.click();
       }
     } else {
-      // Native platforms
-      if (!documentPickerAvailable) {
-        Alert.alert('Error', 'File picker is not available on this device');
-        return;
-      }
-
       try {
-        const DocumentPicker = require('react-native-document-picker').default;
-        
-        const res = await DocumentPicker.pick({
-          type: [DocumentPicker.types.allFiles],
-          allowMultiSelection: false,
+        const result = await DocumentPicker.getDocumentAsync({
+          type: '*/*',
+          multiple: false,
         });
-        
-        const file = Array.isArray(res) ? res[0] : res;
-        uploadMedia(file);
-      } catch (err) {
-        const DocumentPicker = require('react-native-document-picker').default;
-        
-        if (DocumentPicker.isCancel(err)) {
+
+        if (result.type === 'cancel') {
           console.log('User cancelled file picker');
-        } else {
-          console.error('File Picker Error: ', err);
-          Alert.alert('Error', 'Failed to pick file');
+        } else if (result.assets && result.assets[0]) {
+          console.log('Selected file:', result.assets[0]);
+          uploadMedia(result.assets[0]); // Pass asset directly
         }
+      } catch (err) {
+        console.error('File Picker Error:', err);
+        Alert.alert('Error', 'Failed to pick file');
       }
     }
   };
 
   const handleWebFileChange = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-  
-    // Create a structure similar to what react-native-image-picker returns
-    const fileAsset = {
-      file, // Pass the raw File object for web
-      type: file.type,
-      name: file.name,
-      size: file.size,
-    };
-  
-    uploadMedia(fileAsset);
-  
-    // Reset the input so the same file can be selected again
+    const newFile = event.target.files[0];
+    if (!newFile) return;
+
+    uploadMedia(newFile); // Pass file directly
+
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -117,39 +92,7 @@ const MediaUploader = ({ conversationId, onUploadComplete, styles }) => {
   const uploadMedia = async (asset) => {
     try {
       const jwt = await getToken();
-  
-      // Extract information from the asset
-      let fileUri = asset.uri;
-      let fileType = asset.type;
-      let fileName = asset.fileName || asset.name || `file_${Date.now()}`;
-      let fileObject = asset.file; // For web, this is the File object
-  
-      // Handle base64 data URIs
-      if (fileUri && fileUri.startsWith('data:')) {
-        // Extract MIME type from data URI
-        const mimeMatch = fileUri.match(/^data:([^;]+);/);
-        if (mimeMatch && mimeMatch[1]) {
-          fileType = mimeMatch[1];
-        }
-  
-        // Ensure we have a proper extension for the file
-        const fileExtension = getExtensionFromMimeType(fileType);
-        if (fileExtension && !fileName.endsWith(fileExtension)) {
-          fileName = `${fileName}${fileExtension}`;
-        }
-      }
-  
-      // Create file object with proper structure for upload
-      const file = {
-        uri: fileUri, // May be undefined for web
-        type: fileType || 'application/octet-stream',
-        name: fileName,
-        file: fileObject, // Include the File object for web
-      };
-  
-      console.log('Uploading file:', file);
-      await sendFile(jwt, conversationId, file);
-  
+      await sendFile(jwt, conversationId, asset);
       if (onUploadComplete) {
         onUploadComplete();
       }
@@ -159,32 +102,29 @@ const MediaUploader = ({ conversationId, onUploadComplete, styles }) => {
     }
   };
 
-  // Helper function to get appropriate extension from MIME type
-  const getExtensionFromMimeType = (mimeType) => {
-    if (!mimeType) return '';
-    
-    const mimeToExt = {
-      'image/jpeg': '.jpg',
-      'image/png': '.png',
-      'image/gif': '.gif',
-      'image/webp': '.webp',
-      'video/mp4': '.mp4',
-      'video/quicktime': '.mov',
-      'audio/mpeg': '.mp3',
-      'audio/mp3': '.mp3',
-      'audio/wav': '.wav',
-      'audio/ogg': '.ogg',
-      'application/pdf': '.pdf',
-      'application/msword': '.doc',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
-      'application/vnd.ms-excel': '.xls',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
-      'text/csv': '.csv',
-      'application/zip': '.zip',
-      'application/x-rar-compressed': '.rar',
+  // Helper function to get MIME type
+  const getMimeTypeFromFileName = (fileName) => {
+    if (!fileName) return 'application/octet-stream';
+    const extension = fileName.split('.').pop().toLowerCase();
+    const mimeTypes = {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      gif: 'image/gif',
+      mp4: 'video/mp4',
+      mov: 'video/quicktime',
+      mp3: 'audio/mpeg',
+      wav: 'audio/wav',
+      pdf: 'application/pdf',
+      doc: 'application/msword',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      xls: 'application/vnd.ms-excel',
+      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      csv: 'text/csv',
+      zip: 'application/zip',
+      rar: 'application/x-rar-compressed',
     };
-    
-    return mimeToExt[mimeType] || '';
+    return mimeTypes[extension] || 'application/octet-stream';
   };
 
   return (
@@ -195,16 +135,10 @@ const MediaUploader = ({ conversationId, onUploadComplete, styles }) => {
       <TouchableOpacity onPress={openGallery}>
         <Ionicons name="image" size={24} color="#007aff" style={styles.icon} />
       </TouchableOpacity>
-      <TouchableOpacity onPress={openFilePicker} disabled={!documentPickerAvailable}>
-        <Ionicons
-          name="attach"
-          size={24}
-          color={documentPickerAvailable ? '#007aff' : '#ccc'}
-          style={styles.icon}
-        />
+      <TouchableOpacity onPress={openFilePicker}>
+        <Ionicons name="attach" size={24} color="#007aff" style={styles.icon} />
       </TouchableOpacity>
-      
-      {/* Hidden file input for web */}
+
       {Platform.OS === 'web' && (
         <input
           type="file"

@@ -14,6 +14,9 @@ import PersonalScreen from './screens/PersonalScreen';
 import SearchScreen from './screens/SearchScreen';
 import PersonalPageScreen from './screens/PersonalPageScreen';
 import ConversationScreen from './screens/ConversationScreen/ConversationScreen';
+import CreateGroupScreen from './screens/CreateGroupScreen';
+import GroupManagementScreen from './screens/ConversationScreen/GroupManagementScreen';
+import PrivateConversationInfo from './screens/ConversationScreen/PrivateConversationInfoScreen';
 
 import { getToken } from './apis/TokenAPI.js';
 import { loginWithJWT } from './apis/AuthAPI.js';
@@ -33,7 +36,7 @@ export default function App() {
 
   // Initialize socket only if token exists
   //const socketState = useSocket(token ?  `${BASE_URL}:3002` : null, token);
-  const socketState = useSocket(token ?  `http://localhost:3002` : null, token);
+  const socketState = useSocket(token ?  `http://54.169.214.143:3002` : null, token);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -118,6 +121,9 @@ export default function App() {
                 <Stack.Screen name="SearchScreen" component={SearchScreen} />
                 <Stack.Screen name="PersonalPageScreen" component={PersonalPageScreen} />
                 <Stack.Screen name="ConversationListScreen" component={ConversationListScreen} />
+                <Stack.Screen name="CreateGroupScreen" component={CreateGroupScreen} />
+                <Stack.Screen name="GroupManagementScreen" component={GroupManagementScreen} />
+                <Stack.Screen name="PrivateConversationInfoScreen" component={PrivateConversationInfo} />
               </Stack.Navigator>
               <StatusBar style="auto" />
             </NavigationContainer>

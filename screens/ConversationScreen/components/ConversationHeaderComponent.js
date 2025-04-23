@@ -7,58 +7,65 @@ const ConversationHeader = ({ navigation, headerInfo }) => {
     return null; // Or a loading indicator
   }
 
-  if (headerInfo.isGroup) {
-    return (
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
-        <Image
-          source={
-            headerInfo.avatar
+  const conversation = headerInfo.conversation;
+  const isGroup = conversation.type === 'GROUP' ? true : false;
+  return (
+    <View style={styles.header}>
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.goBack()}
+      >
+        <Ionicons name="arrow-back" size={24} color="#000" />
+      </TouchableOpacity>
+      <Image
+        source={
+          isGroup
+            ? headerInfo.avatar
               ? { uri: headerInfo.avatar }
-              : require('../../../assets/icon.png') // Use a default group icon if preferred
-          }
-          style={styles.headerAvatar}
-        />
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerName}>
-            {headerInfo.name || 'Group'}
-          </Text>
-        </View>
-      </View>
-    );
-  } else {
-    return (
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
-        <Image
-          source={
-            headerInfo.baseImg
-              ? { uri: headerInfo.baseImg }
               : require('../../../assets/icon.png')
-          }
-          style={styles.headerAvatar}
-        />
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerName}>
-            {headerInfo.name || headerInfo.phoneNumber || 'Loading...'}
-          </Text>
-          <Text style={styles.headerStatus}>
+            : headerInfo.avatar
+            ? { uri: headerInfo.avatar }
+            : require('../../../assets/icon.png')
+        }
+        style={styles.headerAvatar}
+      />
+      <View style={styles.headerInfo}>
+        <Text style={styles.headerName} numberOfLines={1}>
+          {isGroup ? headerInfo.name || 'Group' : headerInfo.name || headerInfo.phoneNumber || 'Loading...'}
+        </Text>
+        {!isGroup && (
+          <Text style={styles.headerStatus} numberOfLines={1}>
             {headerInfo.status || 'Offline'}
           </Text>
-        </View>
+        )}
       </View>
-    );
-  }
+      <View style={styles.headerActions}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => alert('Voice call')}
+        >
+          <Ionicons name="call" size={24} color="#000" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => alert('Video call')}
+        >
+          <Ionicons name="videocam" size={24} color="#000" />
+        </TouchableOpacity>
+        {isGroup && (
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              navigation.navigate('GroupManagementScreen', { conversation: conversation });
+            }}
+          >
+            <Ionicons name="settings" size={24} color="#000" />
+          </TouchableOpacity>
+        )}
+
+      </View>
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
@@ -94,6 +101,14 @@ const styles = StyleSheet.create({
   headerStatus: {
     fontSize: 13,
     color: 'gray',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
+    padding: 4,
+    marginLeft: 10,
   },
 });
 

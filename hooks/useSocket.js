@@ -228,6 +228,7 @@ const useSocket = (url, token) => {
         conversations: prev.conversations.filter(
           (conv) => conv.id !== conversationId
         ),
+        currentConversation: undefined,
       }));
     };
 
@@ -340,6 +341,39 @@ const useSocket = (url, token) => {
     [socket]
   );
 
+  const startCall = useCallback(
+    async (conversationId, callType) => {
+      console.log("Starting call for conversation:", conversationId);
+      if (!socket) {
+        console.error("Socket is not initialized");
+        throw new Error("Socket is not initialized");
+      }
+
+      try {
+        const response = await new Promise((resolve, reject) => {
+          socket.emit(
+            "start_call",
+            { conversationId, callType },
+            (ack) => {
+              console.log("Received ack from server:", ack);
+              if (ack.status === "success") {
+                resolve(ack);
+              } else {
+                reject(new Error(ack.message));
+              }
+            }
+          );
+        });
+        console.log("Call started successfully:", response);
+        return response;
+      } catch (error) {
+        console.error("Failed to start call:", error);
+        throw error;
+      }
+    },
+    [socket]
+  );
+
   const getConversationsWithUnreadCounts = useCallback(() => {
     return Object.entries(state.unreadCounts).map(
       ([conversationId, unreadCount]) => ({
@@ -355,6 +389,7 @@ const useSocket = (url, token) => {
       sendTextMessage,
       recallMessage,
       reactToMessage,
+      startCall,
       getConversationsWithUnreadCounts,
     }),
     [
@@ -362,11 +397,12 @@ const useSocket = (url, token) => {
       sendTextMessage,
       recallMessage,
       reactToMessage,
+      startCall,
       getConversationsWithUnreadCounts,
     ]
   );
 
-  return { ...state, socket };
+  return { ...state, socket, actions };
 };
 
 export default useSocket;

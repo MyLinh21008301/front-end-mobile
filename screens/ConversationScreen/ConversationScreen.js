@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   FlatList,
@@ -24,7 +24,7 @@ const ConversationScreen = ({ navigation }) => {
   const messages = currentConversation?.messageDetails || [];
   const myInfo = userInfo;
 
-  useEffect(() => {
+  React.useEffect(() => {
     const fetchParticipantsInfo = async () => {
       if (currentConversation && myInfo?.phoneNumber) {
         const participants = currentConversation.participants
@@ -47,22 +47,29 @@ const ConversationScreen = ({ navigation }) => {
           setParticipantsInfo(participantsInfoMap);
 
           if (currentConversation.type === 'private') {
-            const friendPhone = participants[0]; // Only one other participant
-            setHeaderInfo(participantsInfoMap[friendPhone]);
+            const friendPhone = participants[0];
+            const friendInfo = participantsInfoMap[friendPhone];
+            setHeaderInfo({ ...friendInfo, conversation: currentConversation });
           } else {
             setHeaderInfo({
               name: currentConversation.conversationName,
               avatar: currentConversation.conversationImgUrl,
               isGroup: true,
+              conversation: currentConversation,
             });
           }
         } catch (error) {
           console.error('Error fetching participants info:', error);
           if (currentConversation.type === 'private') {
             const friendPhone = participants[0];
-            setHeaderInfo({ phoneNumber: friendPhone });
+            setHeaderInfo({ phoneNumber: friendPhone, conversation: currentConversation });
           } else {
-            setHeaderInfo({ name: 'Group', avatar: null, isGroup: true });
+            setHeaderInfo({
+              name: 'Group',
+              avatar: null,
+              isGroup: true,
+              conversation: currentConversation,
+            });
           }
         }
       }
@@ -70,18 +77,17 @@ const ConversationScreen = ({ navigation }) => {
     fetchParticipantsInfo();
   }, [currentConversation, myInfo]);
 
+  // Scroll to bottom when messages change (new message received)
   useEffect(() => {
-    if (flatListRef.current && messages.length > 0) {
-      setTimeout(() => {
-        flatListRef.current.scrollToEnd({ animated: false });
-      }, 0);
+    if (messages.length > 0) {
+      jumpToBottom();
     }
   }, [messages]);
 
-  const scrollToBottom = () => {
+  const jumpToBottom = () => {
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
-    }, 0);
+    }, 100);
   };
 
   return (
@@ -103,16 +109,11 @@ const ConversationScreen = ({ navigation }) => {
           />
         )}
         contentContainerStyle={styles.messageList}
-        onContentSizeChange={() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }}
-        onLayout={() => {
-          flatListRef.current?.scrollToEnd({ animated: false });
-        }}
+        onLayout={jumpToBottom}
       />
       <MessageInput
         conversationId={currentConversation?.id}
-        onMessageSent={scrollToBottom}
+        onMessageSent={jumpToBottom}
       />
     </KeyboardAvoidingView>
   );

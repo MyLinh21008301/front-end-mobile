@@ -1,8 +1,9 @@
-import axios from 'axios';
-import {Platform } from 'react-native';
+import { Platform } from 'react-native';
 
 import BASE_URL from './BaseURL';
 import { getToken } from './TokenAPI';
+import * as FileSystem from 'expo-file-system';
+import axios from 'axios';
 
 const MESSAGE_API = {
   text: `${BASE_URL}/messages/text`,
@@ -10,7 +11,7 @@ const MESSAGE_API = {
   callEvent: `${BASE_URL}/messages/call-event`,
 };
 
-// Send text message
+// Send text message (unchanged)
 export const text = async (jwt, conversationId, content) => {
   try {
     const response = await axios.post(MESSAGE_API.text, {
@@ -30,96 +31,120 @@ export const text = async (jwt, conversationId, content) => {
     throw error;
   }
 };
+// Helper function to determine MIME type from file extension
+const getMimeTypeFromFileName = (fileName) => {
+  if (!fileName) return 'application/octet-stream';
+  const extension = fileName.split('.').pop().toLowerCase();
+  const mimeTypes = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    csv: 'text/csv',
+    zip: 'application/zip',
+    rar: 'application/x-rar-compressed',
+  };
+  return mimeTypes[extension] || 'application/octet-stream';
+};
 
 export const sendFile = async (jwt, conversationId, file) => {
+  console.log('Sending file with JWT:', file);
   try {
-    let blob;
-    let filename = file.name;
-    let mimeType = file.type || 'application/octet-stream';
-
-    // Check if a raw File object is provided (web platform)
-    if (file.file && Platform.OS === 'web') {
-      blob = file.file; // Use the File object directly
-      filename = file.name || `media_${Date.now()}`;
-    }
-    // Check if the file.uri is a data URL
-    else if (file.uri && file.uri.startsWith('data:')) {
-      // Extract MIME type and base64 data from the data URL
-      const dataurl = file.uri;
-      const arr = dataurl.split(',');
-      mimeType = arr[0].match(/:(.*?);/)[1]; // e.g., "image/png"
-      const bstr = atob(arr[1]); // Decode base64 to binary string
-      let n = bstr.length;
-      const u8arr = new Uint8Array(n);
-      while (n--) {
-        u8arr[n] = bstr.charCodeAt(n);
-      }
-      blob = new Blob([u8arr], { type: mimeType });
-
-      // Determine file extension from MIME type
-      const extension = mimeType.split('/')[1] || 'file';
-      filename = file.name ? `${file.name}.${extension}` : `media_${Date.now()}.${extension}`;
-    } else {
-      // Handle mobile file URI if needed (not applicable for web in this case)
-      throw new Error('File URI not supported on web');
-    }
-
-    // Create content description based on MIME type (for display purposes)
-    let contentDescription;
-    if (mimeType.startsWith('image/')) {
-      contentDescription = 'Image';
-    } else if (mimeType.startsWith('video/')) {
-      contentDescription = 'Video';
-    } else if (mimeType.startsWith('audio/')) {
-      contentDescription = 'Audio';
-    } else {
-      contentDescription = 'File';
-    }
+    console.log('Uploading file with MIME type:', file.mimeType || file.type);
+    console.log('Uploading file:', file);
 
     const formData = new FormData();
 
-    // Append the request part as a JSON Blob
-    const requestBlob = new Blob(
-      [
-        JSON.stringify({
-          conversationId: conversationId,
-          type: 'MEDIA',
-          content: contentDescription,
-        }),
-      ],
-      { type: 'application/json' }
-    );
-    formData.append('request', requestBlob);
+    // Determine file type (MEDIA or FILE)
+    let fileType = 'FILE';
+    const mimeType = file.mimeType || file.type || getMimeTypeFromFileName(file.fileName);
+    if (mimeType && ['image/', 'video/', 'audio/'].some(type => mimeType.startsWith(type))) {
+      fileType = 'MEDIA';
+    }
 
-    // Append the file Blob with the correct filename
-    formData.append('file', blob, filename);
+    // Create request object matching MessageRequestDTO
+    const requestObject = {
+      conversationId: conversationId,
+      content: file.uri || `media_${Date.now()}`,
+      type: fileType,
+      replyTo: null,
+    };
 
-    // Send the request
-    const response = await axios.post(MESSAGE_API.file, formData, {
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-      },
-    });
+    // Append request as a JSON string
+    formData.append('request', JSON.stringify(requestObject));
 
-    return response.data;
+    if (file.uri) {
+      // Prepare file info
+      const fileExtension = mimeType.split('/')[1] || 'jpg';
+      const fileName = file.fileName || `file_${Date.now()}.${fileExtension}`;
+
+      // Ensure correct URI for platform
+      const fileUri = Platform.OS === 'android' && !file.uri.startsWith('file://')
+        ? `file://${file.uri}`
+        : file.uri;
+
+      // Verify file accessibility
+      const fileStat = await FileSystem.getInfoAsync(fileUri);
+      if (!fileStat.exists) {
+        throw new Error(`File does not exist at URI: ${fileUri}`);
+      }
+
+      // Create file info for FormData
+      const fileInfo = {
+        uri: fileUri,
+        type: mimeType,
+        name: fileName,
+      };
+
+      // Append file to FormData with the key 'file'
+      formData.append('file', fileInfo);
+
+      console.log('FormData request object:', requestObject);
+      console.log('FormData file info:', fileInfo);
+
+      // Perform axios request
+      const response = await axios.post(MESSAGE_API.file, formData, {
+        headers: {
+          'Authorization': `Bearer ${jwt}`,
+          'Accept': 'application/json',
+          // Axios automatically sets Content-Type to multipart/form-data
+        },
+      });
+
+      console.log('File upload successful:', response.data);
+      return response.data;
+    } else {
+      throw new Error('File URI is missing.');
+    }
   } catch (error) {
-    console.error('Error when sending file message with JWT:', error.response?.data || error.message);
+    console.error('Upload error:', error.response?.data || error.message);
     throw error;
   }
 };
 
-
-// Send call event
+// Send call event (unchanged)
 export const sendCallEvent = async (jwt, conversationId, callStatus) => {
   try {
     const response = await axios.post(MESSAGE_API.callEvent, {
       conversationId: conversationId,
       type: 'CALL',
-      content: callStatus, // e.g., "Call started", "Call ended", "Missed call"
+      content: callStatus,
     }, {
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwt}`,
+        'Content-Type': 'multipart/form-data',
+        'Accept': 'application/json',
+        
+        
       },
     });
     return response.data;
