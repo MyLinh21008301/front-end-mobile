@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 
 import BASE_URL from './BaseURL';
-import { getToken } from './TokenAPI';
 import * as FileSystem from 'expo-file-system';
 import axios from 'axios';
 
@@ -9,6 +8,8 @@ const MESSAGE_API = {
   text: `${BASE_URL}/messages/text`,
   file: `${BASE_URL}/messages/file`,
   callEvent: `${BASE_URL}/messages/call-event`,
+  recallMessage: `${BASE_URL}/messages`,
+  addReaction: `${BASE_URL}/messages`,
 };
 
 // Send text message (unchanged)
@@ -33,7 +34,7 @@ export const text = async (jwt, conversationId, content) => {
 };
 // Helper function to determine MIME type from file extension
 const getMimeTypeFromFileName = (fileName) => {
-  if (!fileName) return 'application/octet-stream';
+  if (!fileName) return 'image/jpeg';
   const extension = fileName.split('.').pop().toLowerCase();
   const mimeTypes = {
     jpg: 'image/jpeg',
@@ -53,7 +54,7 @@ const getMimeTypeFromFileName = (fileName) => {
     zip: 'application/zip',
     rar: 'application/x-rar-compressed',
   };
-  return mimeTypes[extension] || 'application/octet-stream';
+  return mimeTypes[extension] || 'image/jpeg';
 };
 
 export const sendFile = async (jwt, conversationId, file) => {
@@ -101,9 +102,12 @@ export const sendFile = async (jwt, conversationId, file) => {
       // Create file info for FormData
       const fileInfo = {
         uri: fileUri,
-        type: mimeType,
+        type: mimeType == 'application/octet-stream' ? mimeType : 'image/jpeg',
         name: fileName,
       };
+
+      console.log('File info:', fileInfo);
+      
 
       // Append file to FormData with the key 'file'
       formData.append('file', fileInfo);
@@ -115,8 +119,8 @@ export const sendFile = async (jwt, conversationId, file) => {
       const response = await axios.post(MESSAGE_API.file, formData, {
         headers: {
           'Authorization': `Bearer ${jwt}`,
-          'Accept': 'application/json',
-          // Axios automatically sets Content-Type to multipart/form-data
+          'Content-Type': 'multipart/form-data',
+          
         },
       });
 
@@ -150,6 +154,43 @@ export const sendCallEvent = async (jwt, conversationId, callStatus) => {
     return response.data;
   } catch (error) {
     console.error('Error when sending call event with JWT:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Recall message
+export const recallMessage = async (jwt, messageId) => {
+  try {
+    const url = `${MESSAGE_API.recallMessage}/${messageId}`;
+    console.log('Sending recall request to:', url);
+    await axios.delete(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${jwt}`,
+      },
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Error recalling message:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Add reaction
+export const addReaction = async (jwt, messageId, emoji) => {
+  try {
+    const payload = { emoji };
+    const url = `${MESSAGE_API.addReaction}/${messageId}/reactions`;
+    console.log('Sending reaction request to:', url, 'Payload:', payload);
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${jwt}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error adding reaction:', error.response?.data || error.message);
     throw error;
   }
 };

@@ -8,11 +8,14 @@ import {
   Alert,
   Modal,
   Dimensions,
+  Pressable,
 } from 'react-native';
 import { Video, Audio } from 'expo-av';
 import { Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PinchGestureHandler, State } from 'react-native-gesture-handler';
+import { getToken } from '../../../apis/TokenAPI'; // Assuming TokenAPI is in the same directory
+import { recallMessage, addReaction } from '../../../apis/MessageAPI'; // Assuming these are exported from the provided API code
 
 // Define common file extensions for different media types
 const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
@@ -31,6 +34,9 @@ const documentExtensions = [
   'csv',
 ];
 const archiveExtensions = ['zip', 'rar', '7z', 'tar', 'gz'];
+
+// Define reaction emojis
+const REACTION_EMOJIS = ['❤️', '😂', '😮', '😢', '👍', '👎'];
 
 // Function to extract file extension from a URL
 const getFileExtension = (url) => {
@@ -66,18 +72,15 @@ const getFileIcon = (extension) => {
 // Function to parse createdAt
 const parseCreatedAt = (createdAt) => {
   try {
-    // Handle HH:mm format (e.g., "16:43")
     if (/^\d{2}:\d{2}$/.test(createdAt)) {
       const today = new Date();
       const [hours, minutes] = createdAt.split(':').map(Number);
       today.setHours(hours, minutes, 0, 0);
       return today;
     }
-    // Handle ISO format with nanoseconds (e.g., "2025-04-21T15:39:36.994258700")
     if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+/.test(createdAt)) {
       return new Date(createdAt.replace(/(\.\d{3})\d+/, '$1Z'));
     }
-    // Fallback: return current date/time
     console.warn('Invalid createdAt format:', createdAt);
     return new Date();
   } catch (error) {
@@ -94,7 +97,7 @@ const ImageViewer = ({ visible, imageUri, onClose }) => {
 
   const onPinchGestureEvent = (event) => {
     const newScale = baseScale.current * event.nativeEvent.scale;
-    setScale(Math.max(0.5, Math.min(newScale, 3))); // Limit scale between 0.5x and 3x
+    setScale(Math.max(0.5, Math.min(newScale, 3)));
   };
 
   const onPinchHandlerStateChange = (event) => {
@@ -130,6 +133,32 @@ const ImageViewer = ({ visible, imageUri, onClose }) => {
   );
 };
 
+// Reaction Picker Component
+const ReactionPicker = ({ visible, onSelect, onClose }) => {
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.reactionModalOverlay} onPress={onClose}>
+        <View style={styles.reactionPicker}>
+          {REACTION_EMOJIS.map((emoji, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.reactionButton}
+              onPress={() => onSelect(emoji)}
+            >
+              <Text style={styles.reactionEmoji}>{emoji}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </Pressable>
+    </Modal>
+  );
+};
+
 // Format time in mm:ss
 const formatTime = (millis) => {
   if (!millis) return '00:00';
@@ -153,6 +182,7 @@ const MessageItem = ({ item, myInfo, participantsInfo }) => {
   });
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState('');
+  const [reactionPickerVisible, setReactionPickerVisible] = useState(false);
 
   console.log('Raw createdAt:', item.createdAt, typeof item.createdAt);
 
@@ -231,6 +261,61 @@ const MessageItem = ({ item, myInfo, participantsInfo }) => {
   const openImageViewer = (uri) => {
     setSelectedImageUri(uri);
     setImageViewerVisible(true);
+  };
+
+  // Handle long press to show options
+  const handleLongPress = () => {
+    if (isMyMessage) {
+      // Show recall and reaction options for own messages
+      Alert.alert(
+        'Message Options',
+        'Choose an action',
+        [
+          {
+            text: 'Recall Message',
+            onPress: handleRecallMessage,
+            style: 'destructive',
+          },
+          {
+            text: 'Add Reaction',
+            onPress: () => setReactionPickerVisible(true),
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+        ],
+        { cancelable: true }
+      );
+    } else {
+      // Show only reaction option for others' messages
+      setReactionPickerVisible(true);
+    }
+  };
+
+  // Handle recall message
+  const handleRecallMessage = async () => {
+    try {
+      const jwt = await getToken();
+      await recallMessage(jwt, item.id);
+      Alert.alert('Success', 'Message recalled successfully');
+    } catch (error) {
+      console.error('Failed to recall message:', error);
+      Alert.alert('Error', 'Failed to recall message');
+    }
+  };
+
+  // Handle reaction selection
+  const handleReactionSelect = async (emoji) => {
+    try {
+      const jwt = await getToken();
+      await addReaction(jwt, item.id, emoji);
+      setReactionPickerVisible(false);
+      Alert.alert('Success', 'Reaction added successfully');
+    } catch (error) {
+      console.error('Failed to add reaction:', error);
+      Alert.alert('Error', 'Failed to add reaction');
+    }
   };
 
   let contentElement;
@@ -352,41 +437,64 @@ const MessageItem = ({ item, myInfo, participantsInfo }) => {
     );
   }
 
+  // Display reactions if any
+  const reactionElement = item.reactions?.length > 0 && (
+    <View style={styles.reactionContainer}>
+      {item.reactions.map((reaction, index) => (
+        <Text key={index} style={styles.reactionText}>
+          {reaction.emoji}
+        </Text>
+      ))}
+    </View>
+  );
+
   return (
     <>
-      <View
-        style={[
-          styles.messageBubble,
-          isMyMessage ? styles.yourMessage : styles.otherMessage,
-        ]}
+      <TouchableOpacity
+        onLongPress={handleLongPress}
+        delayLongPress={500}
+        activeOpacity={0.8}
       >
-        <View style={styles.messageHeader}>
-          <Image
-            source={
-              sender?.baseImg
-                ? { uri: sender.baseImg }
-                : require('../../../assets/icon.png')
-            }
-            style={styles.messageAvatar}
-          />
-          <Text style={styles.messageSenderName}>
-            {sender?.name || sender?.phoneNumber || 'Unknown'}
-          </Text>
-        </View>
-        {contentElement}
-        <Text
-          style={[styles.messageTime, isMyMessage ? styles.yourMessageTime : {}]}
+        <View
+          style={[
+            styles.messageBubble,
+            isMyMessage ? styles.yourMessage : styles.otherMessage,
+          ]}
         >
-          {parseCreatedAt(item.createdAt).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </Text>
-      </View>
+          <View style={styles.messageHeader}>
+            <Image
+              source={
+                sender?.baseImg
+                  ? { uri: sender.baseImg }
+                  : require('../../../assets/icon.png')
+              }
+              style={styles.messageAvatar}
+            />
+            <Text style={styles.messageSenderName}>
+              {sender?.name || sender?.phoneNumber || 'Unknown'}
+            </Text>
+          </View>
+          {contentElement}
+          <Text
+            style={[styles.messageTime, isMyMessage ? styles.yourMessageTime : {}]}
+          >
+            {parseCreatedAt(item.createdAt).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </Text>
+          {reactionElement}
+        </View>
+      </TouchableOpacity>
       <ImageViewer
         visible={imageViewerVisible}
         imageUri={selectedImageUri}
         onClose={() => setImageViewerVisible(false)}
+      />
+      <ReactionPicker
+        visible={reactionPickerVisible}
+        onSelect={handleReactionSelect}
+        onClose={() => setReactionPickerVisible(false)}
       />
     </>
   );
@@ -416,7 +524,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    marginWindowRight: 8,
+    marginRight: 8,
   },
   messageSenderName: {
     fontSize: 14,
@@ -519,6 +627,36 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     backgroundColor: '#007aff',
+  },
+  // Reaction Picker Styles
+  reactionModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reactionPicker: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 10,
+    elevation: 5,
+  },
+  reactionButton: {
+    padding: 10,
+  },
+  reactionEmoji: {
+    fontSize: 24,
+  },
+  // Reaction Display Styles
+  reactionContainer: {
+    flexDirection: 'row',
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
+  reactionText: {
+    fontSize: 16,
+    marginRight: 4,
   },
 });
 

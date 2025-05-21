@@ -104,7 +104,7 @@ const MediaUploader = ({ conversationId, onUploadComplete, styles }) => {
 
   // Helper function to get MIME type
   const getMimeTypeFromFileName = (fileName) => {
-    if (!fileName) return 'application/octet-stream';
+    if (!fileName) return 'image/jpeg';
     const extension = fileName.split('.').pop().toLowerCase();
     const mimeTypes = {
       jpg: 'image/jpeg',
@@ -124,7 +124,7 @@ const MediaUploader = ({ conversationId, onUploadComplete, styles }) => {
       zip: 'application/zip',
       rar: 'application/x-rar-compressed',
     };
-    return mimeTypes[extension] || 'application/octet-stream';
+    return mimeTypes[extension] || 'image/jpeg';
   };
 
   return (

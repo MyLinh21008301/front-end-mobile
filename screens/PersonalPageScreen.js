@@ -37,7 +37,7 @@ export default function PersonalPageScreen({ route, navigation }) {
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
       ),
-      headerTitle: 'Profile',
+      headerTitle: 'Hồ sơ',
       headerTitleAlign: 'center',
       headerStyle: {
         backgroundColor: '#fff',
@@ -89,7 +89,7 @@ export default function PersonalPageScreen({ route, navigation }) {
         console.log('Friend status set to:', incoming ? 'pending_received' : null);
       } catch (error) {
         console.error('Error loading friend status:', error);
-        Alert.alert('Error', 'Could not load friend status.');
+        Alert.alert('Lỗi', 'Không thể tải trạng thái bạn bè.');
       } finally {
         setLoading(false);
       }
@@ -104,10 +104,10 @@ export default function PersonalPageScreen({ route, navigation }) {
       await sendFriendRequest(person.phoneNumber);
       setFriendStatus('pending_sent');
       console.log('Friend request sent, status updated to pending_sent');
-      Alert.alert('Success', 'Friend request sent!');
+      Alert.alert('Thành công', 'Đã gửi lời mời kết bạn!');
     } catch (error) {
       console.error('Error sending friend request:', error);
-      Alert.alert('Error', 'Could not send friend request.');
+      Alert.alert('Lỗi', 'Không thể gửi lời mời kết bạn.');
     }
   };
 
@@ -116,10 +116,10 @@ export default function PersonalPageScreen({ route, navigation }) {
       await acceptFriendRequest(person.phoneNumber);
       setFriendStatus('friends');
       console.log('Friend request accepted, status updated to friends');
-      Alert.alert('Success', 'Friend request accepted!');
+      Alert.alert('Thành công', 'Đã chấp nhận lời mời kết bạn!');
     } catch (error) {
       console.error('Error accepting friend request:', error);
-      Alert.alert('Error', 'Could not accept friend request.');
+      Alert.alert('Lỗi', 'Không thể chấp nhận lời mời kết bạn.');
     }
   };
 
@@ -128,10 +128,10 @@ export default function PersonalPageScreen({ route, navigation }) {
       await cancelFriendRequest(person.phoneNumber);
       setFriendStatus(null);
       console.log('Friend request canceled, status updated to null');
-      Alert.alert('Success', 'Friend request canceled!');
+      Alert.alert('Thành công', 'Đã hủy lời mời kết bạn!');
     } catch (error) {
       console.error('Error canceling friend request:', error);
-      Alert.alert('Error', 'Could not cancel friend request.');
+      Alert.alert('Lỗi', 'Không thể hủy lời mời kết bạn.');
     }
   };
 
@@ -140,21 +140,21 @@ export default function PersonalPageScreen({ route, navigation }) {
       await rejectFriendRequest(person.phoneNumber);
       setFriendStatus(null);
       console.log('Friend request declined, status updated to null');
-      Alert.alert('Declined', 'Friend request declined.');
+      Alert.alert('Đã từ chối', 'Đã từ chối lời mời kết bạn.');
     } catch (error) {
       console.error('Error declining friend request:', error);
-      Alert.alert('Error', 'Could not decline friend request.');
+      Alert.alert('Lỗi', 'Không thể từ chối lời mời kết bạn.');
     }
   };
 
   const handleRemoveFriend = () => {
     Alert.alert(
-      'Remove Friend',
-      `Are you sure you want to remove ${person.name || 'this person'} as a friend?`,
+      'Xóa bạn bè',
+      `Bạn có chắc chắn muốn xóa ${person.name || 'người này'} khỏi danh sách bạn bè?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Hủy', style: 'cancel' },
         {
-          text: 'Remove',
+          text: 'Xóa',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -162,10 +162,10 @@ export default function PersonalPageScreen({ route, navigation }) {
               setFriendStatus(null);
               setShowDropdown(false);
               console.log('Friend removed, status updated to null');
-              Alert.alert('Success', 'Friend removed!');
+              Alert.alert('Thành công', 'Đã xóa bạn bè!');
             } catch (error) {
               console.error('Error removing friend:', error);
-              Alert.alert('Error', 'Could not remove friend.');
+              Alert.alert('Lỗi', 'Không thể xóa bạn bè.');
             }
           },
         },
@@ -177,7 +177,7 @@ export default function PersonalPageScreen({ route, navigation }) {
   const renderFriendButton = () => {
     console.log('Rendering friend button with friendStatus:', friendStatus);
     if (loading) {
-      return <Text style={styles.buttonText}>Loading...</Text>;
+      return <Text style={styles.buttonText}>Đang tải...</Text>;
     }
     if (friendStatus === 'self') {
       return null;
@@ -191,7 +191,7 @@ export default function PersonalPageScreen({ route, navigation }) {
               style={[styles.friendButton, styles.friendsButton]}
               onPress={() => setShowDropdown(!showDropdown)}
             >
-              <Text style={styles.buttonText}>Friends</Text>
+              <Text style={styles.buttonText}>Bạn bè</Text>
               <Ionicons
                 name={showDropdown ? 'chevron-up' : 'chevron-down'}
                 size={20}
@@ -204,7 +204,7 @@ export default function PersonalPageScreen({ route, navigation }) {
                 style={[styles.dropdownItem, { marginTop: 5 }]}
                 onPress={handleRemoveFriend}
               >
-                <Text style={styles.dropdownText}>Remove Friend</Text>
+                <Text style={styles.dropdownText}>Hủy kết bạn</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -213,7 +213,7 @@ export default function PersonalPageScreen({ route, navigation }) {
             style={[styles.friendButton, styles.pendingButton]}
             onPress={handleCancelFriendRequest}
           >
-            <Text style={styles.buttonText}>Cancel Request</Text>
+            <Text style={styles.buttonText}>Hủy lời mời</Text>
           </TouchableOpacity>
         ) : friendStatus === 'pending_received' ? (
           <View style={styles.actionButtons}>
@@ -221,13 +221,13 @@ export default function PersonalPageScreen({ route, navigation }) {
               style={[styles.friendButton, styles.acceptButton]}
               onPress={handleAcceptFriendRequest}
             >
-              <Text style={styles.buttonText}>Accept</Text>
+              <Text style={styles.buttonText}>Đồng ý</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.friendButton, styles.declineButton]}
               onPress={handleDeclineFriendRequest}
             >
-              <Text style={styles.buttonText}>Decline</Text>
+              <Text style={styles.buttonText}>Từ chối</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -235,11 +235,41 @@ export default function PersonalPageScreen({ route, navigation }) {
             style={[styles.friendButton, styles.addButton]}
             onPress={handleSendFriendRequest}
           >
-            <Text style={styles.buttonText}>Add Friend</Text>
+            <Text style={styles.buttonText}>Kết bạn</Text>
           </TouchableOpacity>
         )}
       </View>
     );
+  };
+
+  // Render profile info item
+  const renderProfileInfoItem = (iconName, label, value) => {
+    if (!value) return null;
+    
+    return (
+      <View style={styles.infoItem}>
+        <Ionicons name={iconName} size={22} color="#666" style={styles.infoIcon} />
+        <View style={styles.infoTextContainer}>
+          <Text style={styles.infoLabel}>{label}</Text>
+          <Text style={styles.infoValue}>{value}</Text>
+        </View>
+      </View>
+    );
+  };
+
+  // Format date for better display
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('vi-VN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (e) {
+      return dateString;
+    }
   };
 
   // Main render
@@ -272,24 +302,23 @@ export default function PersonalPageScreen({ route, navigation }) {
             onError={(e) => console.log('Avatar image error:', e.nativeEvent.error)}
           />
 
-          <Text style={styles.name}>{person.name || 'Unknown'}</Text>
+          <Text style={styles.name}>{person.name || 'Không xác định'}</Text>
           <Text style={styles.phone}>{person.phoneNumber || 'N/A'}</Text>
 
           {renderFriendButton()}
 
           <View style={styles.infoSection}>
-            <Text style={styles.label}>Status: {person.status || 'N/A'}</Text>
-            {person.bio && <Text style={styles.label}>Bio: {person.bio}</Text>}
-            {person.dateOfBirth && (
-              <Text style={styles.label}>Birthday: {person.dateOfBirth}</Text>
+            <Text style={styles.sectionTitle}>Thông tin cá nhân</Text>
+            
+            {renderProfileInfoItem('person', 'Họ và tên', person.name)}
+            {renderProfileInfoItem('calendar', 'Ngày sinh', formatDate(person.dateOfBirth))}
+            {renderProfileInfoItem('male-female', 'Giới tính', 
+              person.male !== undefined ? (person.male ? 'Nam' : 'Nữ') : 'N/A'
             )}
-            <Text style={styles.label}>
-              Gender: {person.male !== undefined ? (person.male ? 'Male' : 'Female') : 'N/A'}
-            </Text>
-            {person.lastOnlineTime && (
-              <Text style={styles.label}>
-                Last Online: {new Date(person.lastOnlineTime).toLocaleString()}
-              </Text>
+            {renderProfileInfoItem('document-text', 'Giới thiệu', person.bio)}
+            {renderProfileInfoItem('time', 'Trạng thái', person.status)}
+            {renderProfileInfoItem('time-outline', 'Hoạt động gần đây', 
+              person.lastOnlineTime ? new Date(person.lastOnlineTime).toLocaleString('vi-VN') : 'N/A'
             )}
           </View>
         </View>
@@ -351,11 +380,44 @@ const styles = StyleSheet.create({
   infoSection: {
     marginTop: 25,
     width: '100%',
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 15,
+    paddingVertical: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  label: {
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 15,
+    color: '#333',
+    paddingHorizontal: 10,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingHorizontal: 10,
+  },
+  infoIcon: {
+    marginRight: 12,
+  },
+  infoTextContainer: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 2,
+  },
+  infoValue: {
     fontSize: 16,
-    marginBottom: 10,
     color: '#333',
   },
   friendButtonContainer: {

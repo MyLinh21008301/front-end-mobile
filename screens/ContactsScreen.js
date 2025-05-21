@@ -44,7 +44,7 @@ export default function ContactsScreen() {
       setFriends([...friends, user]);
     } catch (error) {
       console.error('Failed to accept friend request:', error);
-      alert('Failed to accept friend request. Please try again.');
+      alert('Không thể chấp nhận lời mời kết bạn. Vui lòng thử lại.');
     } finally {
       setProcessingRequests(prev => ({ ...prev, [user.phoneNumber]: null }));
     }
@@ -61,19 +61,19 @@ export default function ContactsScreen() {
       setFriendRequests(friendRequests.filter(req => req.phoneNumber !== user.phoneNumber));
     } catch (error) {
       console.error('Failed to decline friend request:', error);
-      alert('Failed to decline friend request. Please try again.');
+      alert('Không thể từ chối lời mời kết bạn. Vui lòng thử lại.');
     } finally {
       setProcessingRequests(prev => ({ ...prev, [user.phoneNumber]: null }));
     }
   };
 
   const sections = [
-    friendRequests.length > 0 && { title: 'Friend Requests', data: friendRequests },
-    friends.length > 0 && { title: 'Friends', data: friends },
+    friendRequests.length > 0 && { title: 'Lời mời kết bạn', data: friendRequests },
+    friends.length > 0 && { title: 'Bạn bè', data: friends },
   ].filter(Boolean);
 
   const renderItem = ({ item, section }) => {
-    if (section.title === 'Friend Requests') {
+    if (section.title === 'Lời mời kết bạn') {
       const isProcessing = processingRequests[item.phoneNumber];
       
       return (
@@ -91,7 +91,7 @@ export default function ContactsScreen() {
               {isProcessing === 'accepting' ? (
                 <ActivityIndicator size="small" color="#007AFF" />
               ) : (
-                <Text style={[styles.buttonText, styles.acceptText]}>Accept</Text>
+                <Text style={[styles.buttonText, styles.acceptText]}>Đồng ý</Text>
               )}
             </TouchableOpacity>
             <TouchableOpacity 
@@ -102,7 +102,7 @@ export default function ContactsScreen() {
               {isProcessing === 'rejecting' ? (
                 <ActivityIndicator size="small" color="#FF3B30" />
               ) : (
-                <Text style={[styles.buttonText, styles.declineText]}>Decline</Text>
+                <Text style={[styles.buttonText, styles.declineText]}>Từ chối</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -114,7 +114,7 @@ export default function ContactsScreen() {
           <View style={styles.friendCard}>
             <Image source={{ uri: item.baseImg }} style={styles.avatar} />
             <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.status}>{item.online ? '🟢 Online' : '⚫ Offline'}</Text>
+            <Text style={styles.status}>{item.online ? '🟢 Trực tuyến' : '⚫ Ngoại tuyến'}</Text>
           </View>
         </TouchableOpacity>
       );
@@ -127,7 +127,7 @@ export default function ContactsScreen() {
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading contacts...</Text>
+          <Text style={styles.loadingText}>Đang tải danh bạ...</Text>
         </View>
       ) : sections.length > 0 ? (
         <SectionList
@@ -142,7 +142,7 @@ export default function ContactsScreen() {
           onRefresh={loadData}
         />
       ) : (
-        <Text style={styles.emptyMessage}>No friends or friend requests</Text>
+        <Text style={styles.emptyMessage}>Không có bạn bè hoặc lời mời kết bạn</Text>
       )}
       <BottomNavBar />
     </View>

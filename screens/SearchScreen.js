@@ -27,8 +27,7 @@ export default function SearchScreen() {
     loadSavedData();
   }, []);
 
-  
-  //Loads saved queries and recent people from AsyncStorage.  
+  // Tải các tìm kiếm đã lưu và danh sách người xem gần đây từ AsyncStorage.
   const loadSavedData = async () => {
     try {
       const queries = await getSavedQueries();
@@ -36,26 +35,26 @@ export default function SearchScreen() {
       setSavedQueries(queries);
       setRecentPeople(people ? JSON.parse(people) : []);
     } catch (error) {
-      console.error('Error loading saved data:', error);
+      console.error('Lỗi khi tải dữ liệu đã lưu:', error);
     }
   };
 
   /**
-   * Saves a person to the recent people list, limiting to 100.
-   * @param {Object} person - The person object to save
+   * Lưu một người vào danh sách người xem gần đây, giới hạn tối đa 100 người.
+   * @param {Object} person - Đối tượng người cần lưu
    */
   const saveRecentPerson = async (person) => {
     try {
       const existingPeople = await AsyncStorage.getItem('recentPeople');
       let people = existingPeople ? JSON.parse(existingPeople) : [];
 
-      // Remove if already exists
+      // Xóa nếu đã tồn tại
       people = people.filter(p => p.phoneNumber !== person.phoneNumber);
 
-      // Add to front
+      // Thêm vào đầu danh sách
       people.unshift(person);
 
-      // Limit to 100
+      // Giới hạn 100 người
       if (people.length > 100) {
         people = people.slice(0, 100);
       }
@@ -63,13 +62,13 @@ export default function SearchScreen() {
       await AsyncStorage.setItem('recentPeople', JSON.stringify(people));
       setRecentPeople(people);
     } catch (error) {
-      console.error('Error saving recent person:', error);
+      console.error('Lỗi khi lưu người gần đây:', error);
     }
   };
 
   const handleSearch = async () => {
-    //Skip empty queries
-    if (!query || query.trim() === '') return; 
+    // Bỏ qua nếu truy vấn rỗng
+    if (!query || query.trim() === '') return;
 
     setLoading(true);
     setResults([]);
@@ -79,24 +78,22 @@ export default function SearchScreen() {
       const res = await findPeople(trimmedQuery);
       setResults(res.data || []);
 
-      // Update savedQueries state to match AsyncStorage logic
+      // Cập nhật trạng thái savedQueries để khớp với logic AsyncStorage
       setSavedQueries(prevQueries => {
-        // Remove if already exists
         const filteredQueries = prevQueries.filter(q => q !== trimmedQuery);
-        // Add to front and limit to 100
         const updatedQueries = [trimmedQuery, ...filteredQueries].slice(0, 100);
         return updatedQueries;
       });
     } catch (error) {
-      console.error('Search error:', error);
+      console.error('Lỗi tìm kiếm:', error);
     }
 
     setLoading(false);
   };
 
   /**
-   * Navigates to a person's page and saves them to recent people.
-   * @param {Object} person - The selected person
+   * Điều hướng đến trang cá nhân và lưu vào danh sách người xem gần đây.
+   * @param {Object} person - Người được chọn
    */
   const handlePersonSelect = (person) => {
     saveRecentPerson(person);
@@ -104,9 +101,9 @@ export default function SearchScreen() {
   };
 
   /**
-   * Renders a person item for search results.
-   * @param {Object} param - Item data
-   * @param {Object} param.item - Person object
+   * Hiển thị một mục người trong kết quả tìm kiếm.
+   * @param {Object} param - Dữ liệu mục
+   * @param {Object} param.item - Đối tượng người
    */
   const renderPersonItem = ({ item }) => (
     <TouchableOpacity
@@ -121,15 +118,15 @@ export default function SearchScreen() {
       <View style={{ flex: 1, marginLeft: 10 }}>
         <Text style={styles.name}>{item.name}</Text>
         <Text>{item.phoneNumber}</Text>
-        <Text>Status: {item.status}</Text>
+        <Text>Trạng thái: {item.status}</Text>
       </View>
     </TouchableOpacity>
   );
 
   /**
-   * Renders a recent person item with hold-to-delete functionality.
-   * @param {Object} param - Item data
-   * @param {Object} param.item - Person object
+   * Hiển thị một mục người gần đây với chức năng nhấn giữ để xóa.
+   * @param {Object} param - Dữ liệu mục
+   * @param {Object} param.item - Đối tượng người
    */
   const renderRecentPersonItem = ({ item }) => (
     <TouchableOpacity
@@ -137,12 +134,12 @@ export default function SearchScreen() {
       onPress={() => handlePersonSelect(item)}
       onLongPress={() => {
         Alert.alert(
-          'Delete Recent Person',
-          `Do you want to delete "${item.name}" from recently viewed people?`,
+          'Xóa người gần đây',
+          `Bạn có muốn xóa "${item.name}" khỏi danh sách người đã xem gần đây không?`,
           [
-            { text: 'Cancel', style: 'cancel' },
+            { text: 'Hủy', style: 'cancel' },
             {
-              text: 'Delete',
+              text: 'Xóa',
               onPress: async () => {
                 try {
                   const existingPeople = await AsyncStorage.getItem('recentPeople');
@@ -151,7 +148,7 @@ export default function SearchScreen() {
                   await AsyncStorage.setItem('recentPeople', JSON.stringify(people));
                   setRecentPeople(people);
                 } catch (error) {
-                  console.error('Error deleting recent person:', error);
+                  console.error('Lỗi khi xóa người gần đây:', error);
                 }
               },
             },
@@ -167,15 +164,15 @@ export default function SearchScreen() {
       <View style={{ flex: 1, marginLeft: 10 }}>
         <Text style={styles.name}>{item.name}</Text>
         <Text>{item.phoneNumber}</Text>
-        <Text>Status: {item.status}</Text>
+        <Text>Trạng thái: {item.status}</Text>
       </View>
     </TouchableOpacity>
   );
 
   /**
-   * Renders a saved query item with hold-to-delete functionality.
-   * @param {Object} param - Item data
-   * @param {string} param.item - Query string
+   * Hiển thị một mục tìm kiếm đã lưu với chức năng nhấn giữ để xóa.
+   * @param {Object} param - Dữ liệu mục
+   * @param {string} param.item - Chuỗi truy vấn
    */
   const renderQueryItem = ({ item }) => (
     <TouchableOpacity
@@ -186,12 +183,12 @@ export default function SearchScreen() {
       }}
       onLongPress={() => {
         Alert.alert(
-          'Delete Recent Search',
-          `Do you want to delete "${item}" from recent searches?`,
+          'Xóa tìm kiếm gần đây',
+          `Bạn có muốn xóa "${item}" khỏi danh sách tìm kiếm gần đây không?`,
           [
-            { text: 'Cancel', style: 'cancel' },
+            { text: 'Hủy', style: 'cancel' },
             {
-              text: 'Delete',
+              text: 'Xóa',
               onPress: async () => {
                 try {
                   const existingQueries = await AsyncStorage.getItem('searchQueries');
@@ -200,7 +197,7 @@ export default function SearchScreen() {
                   await AsyncStorage.setItem('searchQueries', JSON.stringify(queries));
                   setSavedQueries(queries);
                 } catch (error) {
-                  console.error('Error deleting search query:', error);
+                  console.error('Lỗi khi xóa truy vấn tìm kiếm:', error);
                 }
               },
             },
@@ -215,11 +212,11 @@ export default function SearchScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
-        <Ionicons name="arrow-back" size={24} color="#000" />
-      </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
+          <Ionicons name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
         <TextInput
-          placeholder="Enter phone or name..."
+          placeholder="Nhập số điện thoại hoặc tên..."
           value={query}
           onChangeText={setQuery}
           style={styles.headerInput}
@@ -236,16 +233,16 @@ export default function SearchScreen() {
         renderItem={renderPersonItem}
         ListEmptyComponent={
           !loading && results.length === 0 && (
-            <Text style={styles.emptyText}>No results found.</Text>
+            <Text style={styles.emptyText}>Không tìm thấy kết quả.</Text>
           )
         }
-        ListHeaderComponent={loading && <Text>Searching...</Text>}
+        ListHeaderComponent={loading && <Text>Đang tìm kiếm...</Text>}
         style={styles.resultsList}
       />
 
       {recentPeople.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recently Viewed People</Text>
+          <Text style={styles.sectionTitle}>Những người đã xem gần đây</Text>
           <FlatList
             data={recentPeople}
             keyExtractor={item => item.phoneNumber}
@@ -258,7 +255,7 @@ export default function SearchScreen() {
 
       {savedQueries.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Searches</Text>
+          <Text style={styles.sectionTitle}>Tìm kiếm gần đây</Text>
           <FlatList
             data={savedQueries}
             keyExtractor={item => item}
