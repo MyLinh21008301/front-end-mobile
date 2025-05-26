@@ -40,7 +40,7 @@ const CreateGroupScreen = () => {
         const friends = await getFriendsList();
         setFriendsList(friends);
       } catch (error) {
-        Alert.alert('Error', 'Could not load friends list. Please try again.');
+        Alert.alert('Lỗi', 'Không thể tải danh sách bạn bè. Vui lòng thử lại.');
         console.error('Failed to fetch friends:', error);
       } finally {
         setIsLoading(false);
@@ -63,7 +63,7 @@ const CreateGroupScreen = () => {
   const selectImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to your photos.');
+      Alert.alert('Cần quyền truy cập', 'Vui lòng cho phép truy cập vào ảnh của bạn.');
       return;
     }
 
@@ -94,11 +94,11 @@ const CreateGroupScreen = () => {
   // Handle group creation with API
   const handleCreateGroup = async () => {
     if (!groupName.trim()) {
-      Alert.alert('Error', 'Please enter a group name.');
+      Alert.alert('Lỗi', 'Vui lòng nhập tên nhóm.');
       return;
     }
     if (selectedMembers.length < 2) {
-      Alert.alert('Error', 'Please select at least two members to create a group.');
+      Alert.alert('Lỗi', 'Vui lòng chọn ít nhất hai thành viên để tạo nhóm.');
       return;
     }
 
@@ -108,11 +108,11 @@ const CreateGroupScreen = () => {
       const jwt = await getToken();
 
       const result = await createGroupWithImage(jwt, groupName, groupImage, selectedMembers);
-      Alert.alert('Success', 'Group created successfully!');
+      Alert.alert('Thành công', 'Đã tạo nhóm thành công!');
       navigation.goBack();
     } catch (error) {
       console.error('Group creation error:', error.response?.data || error.message);
-      Alert.alert('Error', `Failed to create group: ${error.message || 'Please try again.'}`);
+      Alert.alert('Lỗi', `Không thể tạo nhóm: ${error.message || 'Vui lòng thử lại.'}`);
     } finally {
       setIsLoading(false);
     }
@@ -150,7 +150,7 @@ const CreateGroupScreen = () => {
         )}
         <Text style={styles.selectedMemberName} numberOfLines={2} ellipsizeMode="tail">
           {member.name || member.phoneNumber}
-          {member.isCurrentUser ? ' (You)' : ''}
+          {member.isCurrentUser ? ' (Bạn)' : ''}
         </Text>
         {!member.isCurrentUser && (
           <TouchableOpacity
@@ -204,10 +204,10 @@ const CreateGroupScreen = () => {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Feather name="arrow-left" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerText}>New Group</Text>
+        <Text style={styles.headerText}>Nhóm Mới</Text>
         <TouchableOpacity onPress={handleCreateGroup} disabled={isLoading}>
           <Text style={[styles.doneButton, isLoading && styles.disabledButton]}>
-            {isLoading ? 'Creating...' : 'Done'}
+            {isLoading ? 'Đang tạo...' : 'Xong'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -224,7 +224,7 @@ const CreateGroupScreen = () => {
           <View style={styles.section}>
             <TextInput
               style={styles.nameInput}
-              placeholder="Enter group name"
+              placeholder="Nhập tên nhóm"
               value={groupName}
               onChangeText={setGroupName}
               editable={!isLoading}
@@ -242,7 +242,7 @@ const CreateGroupScreen = () => {
             ) : (
               <View style={styles.imagePlaceholder}>
                 <Feather name="camera" size={30} color="#888" />
-                <Text style={styles.imageText}>Add Group Photo</Text>
+                <Text style={styles.imageText}>Thêm Ảnh Nhóm</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -250,7 +250,7 @@ const CreateGroupScreen = () => {
           {/* Selected Members - Horizontal Scrolling */}
           <View style={styles.selectedMembersSection}>
             <Text style={styles.sectionTitle}>
-              Selected Members ({selectedMembers.length})
+              Thành viên đã chọn ({selectedMembers.length})
             </Text>
             
             <FlatList
@@ -269,7 +269,7 @@ const CreateGroupScreen = () => {
               <Feather name="search" size={18} color="#888" style={styles.searchIcon} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search friends by name"
+                placeholder="Tìm kiếm bạn bè theo tên"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 clearButtonMode="while-editing"
@@ -279,7 +279,7 @@ const CreateGroupScreen = () => {
           
           {/* Friend List */}
           <View style={styles.membersHeader}>
-            <Text style={styles.sectionTitle}>Friends</Text>
+            <Text style={styles.sectionTitle}>Bạn bè</Text>
           </View>
           {isLoading ? (
             <ActivityIndicator size="large" color="#1E90FF" style={styles.loader} />

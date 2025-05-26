@@ -4,7 +4,7 @@ import BASE_URL from './BaseURL';
 import * as FileSystem from 'expo-file-system';
 import axios from 'axios';
 
-const MESSAGE_API = {
+export const MESSAGE_API = {
   text: `${BASE_URL}/messages/text`,
   file: `${BASE_URL}/messages/file`,
   callEvent: `${BASE_URL}/messages/call-event`,
@@ -12,14 +12,15 @@ const MESSAGE_API = {
   addReaction: `${BASE_URL}/messages`,
 };
 
-// Send text message (unchanged)
-export const text = async (jwt, conversationId, content) => {
+// Send text message with reply support
+export const text = async (jwt, conversationId, content, replyTo = null) => {
   try {
     const response = await axios.post(MESSAGE_API.text, {
       conversationId: conversationId,
       senderId: '',
       content: content,
       type: 'TEXT',
+      replyTo: replyTo,
     }, {
       headers: {
         'Content-Type': 'application/json',
@@ -32,6 +33,7 @@ export const text = async (jwt, conversationId, content) => {
     throw error;
   }
 };
+
 // Helper function to determine MIME type from file extension
 const getMimeTypeFromFileName = (fileName) => {
   if (!fileName) return 'image/jpeg';
@@ -57,78 +59,64 @@ const getMimeTypeFromFileName = (fileName) => {
   return mimeTypes[extension] || 'image/jpeg';
 };
 
-export const sendFile = async (jwt, conversationId, file) => {
-  console.log('Sending file with JWT:', file);
+// Send file with reply support
+export const sendFile = async (jwt, conversationId, file, replyTo = null) => {
   try {
-    console.log('Uploading file with MIME type:', file.mimeType || file.type);
-    console.log('Uploading file:', file);
-
     const formData = new FormData();
 
-    // Determine file type (MEDIA or FILE)
+    // Determine MIME type and fileType
+    let mimeType = file.type || getMimeTypeFromFileName(file.name || file.fileName) || 'image/jpeg';
     let fileType = 'FILE';
-    const mimeType = file.mimeType || file.type || getMimeTypeFromFileName(file.fileName);
-    if (mimeType && ['image/', 'video/', 'audio/'].some(type => mimeType.startsWith(type))) {
+    if (mimeType && ['image/', 'video/', 'audio/'].some((type) => mimeType.startsWith(type))) {
       fileType = 'MEDIA';
     }
 
-    // Create request object matching MessageRequestDTO
+    // Create request object
     const requestObject = {
       conversationId: conversationId,
-      content: file.uri || `media_${Date.now()}`,
       type: fileType,
-      replyTo: null,
+      replyTo: replyTo,
     };
 
-    // Append request as a JSON string
-    formData.append('request', JSON.stringify(requestObject));
+    formData.append("conversationId", conversationId || "");
+    formData.append("type", fileType);
+    
+    // Add replyTo if provided
+    if (replyTo) {
+      formData.append("replyTo", replyTo);
+    }
 
+    // Handle file object and append to FormData
     if (file.uri) {
-      // Prepare file info
-      const fileExtension = mimeType.split('/')[1] || 'jpg';
-      const fileName = file.fileName || `file_${Date.now()}.${fileExtension}`;
-
-      // Ensure correct URI for platform
+      // Mobile case (React Native)
       const fileUri = Platform.OS === 'android' && !file.uri.startsWith('file://')
         ? `file://${file.uri}`
         : file.uri;
-
-      // Verify file accessibility
-      const fileStat = await FileSystem.getInfoAsync(fileUri);
-      if (!fileStat.exists) {
-        throw new Error(`File does not exist at URI: ${fileUri}`);
-      }
-
-      // Create file info for FormData
+      const fileName = file.name || file.fileName || `file_${Date.now()}.${mimeType.split('/')[1] || 'jpg'}`;
       const fileInfo = {
         uri: fileUri,
-        type: mimeType == 'application/octet-stream' ? mimeType : 'image/jpeg',
+        type: mimeType,
         name: fileName,
       };
-
-      console.log('File info:', fileInfo);
-      
-
-      // Append file to FormData with the key 'file'
       formData.append('file', fileInfo);
-
-      console.log('FormData request object:', requestObject);
-      console.log('FormData file info:', fileInfo);
-
-      // Perform axios request
-      const response = await axios.post(MESSAGE_API.file, formData, {
-        headers: {
-          'Authorization': `Bearer ${jwt}`,
-          'Content-Type': 'multipart/form-data',
-          
-        },
-      });
-
-      console.log('File upload successful:', response.data);
-      return response.data;
+    } else if (file instanceof Blob) {
+      // Web case (File object, which is a Blob subclass)
+      const fileName = file.name || `file_${Date.now()}.${mimeType.split('/')[1] || 'jpg'}`;
+      formData.append('file', file, fileName);
     } else {
-      throw new Error('File URI is missing.');
+      throw new Error('Invalid file object: must have uri (mobile) or be a Blob (web)');
     }
+
+    // Send the request with axios
+    const response = await axios.post(MESSAGE_API.file, formData, {
+      headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${jwt}`,
+          },
+    });
+
+    console.log('File upload successful:', response.data);
+    return response.data;
   } catch (error) {
     console.error('Upload error:', error.response?.data || error.message);
     throw error;
@@ -147,8 +135,6 @@ export const sendCallEvent = async (jwt, conversationId, callStatus) => {
         'Authorization': `Bearer ${jwt}`,
         'Content-Type': 'multipart/form-data',
         'Accept': 'application/json',
-        
-        
       },
     });
     return response.data;

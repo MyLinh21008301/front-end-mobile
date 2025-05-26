@@ -143,7 +143,7 @@ const ConversationItem = ({ conversation, userInfo, onPress }) => {
                 ? latestMessage.content.includes('.mp4')
                   ? 'Sent a video'
                   : 'Sent a file'
-                : 'Unsupported message'}
+                : 'Định dạng không xác định'}
             </Text>
             {latestMessage.senderId !== userInfo.phoneNumber && !latestMessage.read && (
               <View style={styles.unreadIndicator} />
@@ -151,7 +151,7 @@ const ConversationItem = ({ conversation, userInfo, onPress }) => {
           </View>
         ) : (
           <Text style={styles.latestMessage} numberOfLines={1}>
-            No messages yet
+            Chưa có tin nhắn
           </Text>
         )}
       </View>

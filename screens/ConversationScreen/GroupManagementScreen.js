@@ -84,7 +84,7 @@ const GroupManagement = ({ route, navigation }) => {
       setMembers(response);
       setFilteredMembers(response);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load members');
+      Alert.alert('Lỗi', 'Không thể tải danh sách thành viên');
     } finally {
       setIsLoading(false);
     }
@@ -96,7 +96,7 @@ const GroupManagement = ({ route, navigation }) => {
       setFriends(response);
       setFilteredFriends(response.filter(friend => !members.some(member => member.phoneNumber === friend.phoneNumber)));
     } catch (error) {
-      Alert.alert('Error', 'Failed to load friends');
+      Alert.alert('Lỗi', 'Không thể tải danh sách bạn bè');
     }
   };
 
@@ -106,13 +106,13 @@ const GroupManagement = ({ route, navigation }) => {
       const response = await searchMembers(token, groupDetail.id, searchQuery);
       setFilteredMembers(response);
     } catch (error) {
-      Alert.alert('Error', 'Failed to search members');
+      Alert.alert('Lỗi', 'Không thể tìm kiếm thành viên');
     }
   };
 
   const handleRemoveMember = async () => {
     if (selectedMember.role === 'LEADER') {
-      Alert.alert('Error', 'Cannot remove group leader');
+      Alert.alert('Lỗi', 'Không thể xóa trưởng nhóm');
       return;
     }
     try {
@@ -121,9 +121,9 @@ const GroupManagement = ({ route, navigation }) => {
       setMembers(members.filter(member => member.phoneNumber !== selectedMember.phoneNumber));
       setFilteredMembers(filteredMembers.filter(member => member.phoneNumber !== selectedMember.phoneNumber));
       setIsRemoveModalVisible(false);
-      Alert.alert('Success', 'Member removed');
+      Alert.alert('Thành công', 'Đã xóa thành viên');
     } catch (error) {
-      Alert.alert('Error', 'Failed to remove member');
+      Alert.alert('Lỗi', 'Không thể xóa thành viên');
     }
   };
 
@@ -134,9 +134,9 @@ const GroupManagement = ({ route, navigation }) => {
       setSelectedFriends([]);
       setIsAddMemberPanelVisible(false);
       fetchMembers();
-      Alert.alert('Success', 'Members added');
+      Alert.alert('Thành công', 'Đã thêm thành viên');
     } catch (error) {
-      Alert.alert('Error', 'Failed to add members');
+      Alert.alert('Lỗi', 'Không thể thêm thành viên');
     }
   };
 
@@ -146,9 +146,9 @@ const GroupManagement = ({ route, navigation }) => {
       await leaveGroup(token, groupDetail.id, newLeader?.phoneNumber);
       setIsLeaveGroupModalVisible(false);
       navigation.goBack();
-      Alert.alert('Success', 'You have left the group');
+      Alert.alert('Thành công', 'Bạn đã rời khỏi nhóm');
     } catch (error) {
-      Alert.alert('Error', 'Failed to leave group');
+      Alert.alert('Lỗi', 'Không thể rời khỏi nhóm');
     }
   };
 
@@ -158,9 +158,9 @@ const GroupManagement = ({ route, navigation }) => {
       await deleteGroup(token, groupDetail.id);
       setIsDeleteGroupModalVisible(false);
       navigation.goBack();
-      Alert.alert('Success', 'Group deleted');
+      Alert.alert('Thành công', 'Đã xóa nhóm');
     } catch (error) {
-      Alert.alert('Error', 'Failed to delete group');
+      Alert.alert('Lỗi', 'Không thể xóa nhóm');
     }
   };
 
@@ -170,6 +170,52 @@ const GroupManagement = ({ route, navigation }) => {
         ? prev.filter(id => id !== phoneNumber)
         : [...prev, phoneNumber]
     );
+  };
+
+  // Hiển thị vai trò thành viên bằng tiếng Việt
+  const renderMemberRole = (role) => {
+    switch(role) {
+      case 'LEADER': return 'Trưởng nhóm';
+      case 'ADMIN': return 'Quản lý';
+      case 'MEMBER': return 'Thành viên';
+      default: return 'Thành viên';
+    }
+  };
+
+  const handleAdminChange = async (member) => {
+    if (!isLeader || member.role === 'LEADER') return;
+    
+    try {
+      const token = await getToken();
+      const isCurrentlyAdmin = member.role === 'ADMIN';
+      const message = isCurrentlyAdmin 
+        ? `Bạn có chắc muốn hủy quyền quản lý của ${member.name || member.phoneNumber}?` 
+        : `Bạn có chắc muốn cấp quyền quản lý cho ${member.name || member.phoneNumber}?`;
+      
+      Alert.alert(
+        isCurrentlyAdmin ? 'Hủy quyền quản lý' : 'Cấp quyền quản lý',
+        message,
+        [
+          {
+            text: 'Hủy',
+            style: 'cancel'
+          },
+          {
+            text: 'Xác nhận',
+            onPress: async () => {
+              await updateAdmin(token, groupDetail.id, member.phoneNumber, !isCurrentlyAdmin);
+              fetchMembers(); // Refresh member list
+              Alert.alert('Thành công', isCurrentlyAdmin 
+                ? 'Đã hủy quyền quản lý' 
+                : 'Đã cấp quyền quản lý'
+              );
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể thay đổi quyền quản lý');
+    }
   };
 
   const renderMemberItem = ({ item }) => (
@@ -188,11 +234,19 @@ const GroupManagement = ({ route, navigation }) => {
       />
       <View style={styles.memberInfo}>
         <Text style={styles.memberName}>{item.name || item.phoneNumber}</Text>
-        <Text style={styles.memberRole}>{item.role}</Text>
+        <Text style={styles.memberRole}>{renderMemberRole(item.role)}</Text>
       </View>
       {item.role === 'LEADER' && <Ionicons name="star" size={20} color="#FFD700" />}
       {item.role === 'ADMIN' && <Ionicons name="shield-checkmark" size={20} color="#4169E1" />}
       {item.role === 'MEMBER' && <Ionicons name="person" size={20} color="#808080" />}
+      {isLeader && item.role !== 'LEADER' && (
+        <TouchableOpacity 
+          style={styles.adminButton}
+          onPress={() => handleAdminChange(item)}
+        >
+          <Text style={styles.adminButtonText}>{item.role === 'ADMIN' ? 'Hủy quyền' : 'Cấp quyền'}</Text>
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 
@@ -241,19 +295,19 @@ const GroupManagement = ({ route, navigation }) => {
         >
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Group Management</Text>
+        <Text style={styles.headerTitle}>Quản lý nhóm</Text>
       </View>
       <View style={styles.content}>
-        {/* Conversation Info */}
+        {/* Thông tin nhóm chat */}
         <View style={styles.conversationInfo}>
           <Image
             source={groupDetail.conversationImgUrl ? { uri: groupDetail.conversationImgUrl } : require('../../assets/icon.png')}
             style={styles.conversationAvatar}
           />
-          <Text style={styles.conversationName}>{groupDetail.conversationName || 'Group Chat'}</Text>
+          <Text style={styles.conversationName}>{groupDetail.conversationName || 'Nhóm chat'}</Text>
         </View>
 
-        {/* Icon Buttons */}
+        {/* Các nút chức năng */}
         <View style={styles.buttonContainer}>
           <View style={styles.buttonWrapper}>
             <TouchableOpacity
@@ -262,7 +316,7 @@ const GroupManagement = ({ route, navigation }) => {
             >
               <Ionicons name="person-add" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.iconButtonText}>Add Member</Text>
+            <Text style={styles.iconButtonText}>Thêm thành viên</Text>
           </View>
           {isAdmin && (
             <View style={styles.buttonWrapper}>
@@ -272,7 +326,7 @@ const GroupManagement = ({ route, navigation }) => {
               >
                 <Ionicons name="settings" size={24} color="#fff" />
               </TouchableOpacity>
-              <Text style={styles.iconButtonText}>Manage</Text>
+              <Text style={styles.iconButtonText}>Quản lý</Text>
             </View>
           )}
           <View style={styles.buttonWrapper}>
@@ -282,7 +336,7 @@ const GroupManagement = ({ route, navigation }) => {
             >
               <Ionicons name="exit" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.iconButtonText}>Leave Group</Text>
+            <Text style={styles.iconButtonText}>Rời nhóm</Text>
           </View>
           {isLeader && (
             <View style={styles.buttonWrapper}>
@@ -292,19 +346,19 @@ const GroupManagement = ({ route, navigation }) => {
               >
                 <Ionicons name="trash" size={24} color="#fff" />
               </TouchableOpacity>
-              <Text style={styles.iconButtonText}>Delete Group</Text>
+              <Text style={styles.iconButtonText}>Xóa nhóm</Text>
             </View>
           )}
         </View>
 
-        {/* Member List */}
+        {/* Danh sách thành viên */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Members</Text>
+          <Text style={styles.sectionTitle}>Thành viên</Text>
           <View style={styles.searchContainer}>
             <Ionicons name="search" size={20} color="#808080" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search members..."
+              placeholder="Tìm kiếm thành viên..."
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
@@ -319,7 +373,7 @@ const GroupManagement = ({ route, navigation }) => {
         </View>
       </View>
 
-      {/* Add Member Panel */}
+      {/* Bảng thêm thành viên */}
       <Modal
         visible={isAddMemberPanelVisible}
         animationType="slide"
@@ -328,7 +382,7 @@ const GroupManagement = ({ route, navigation }) => {
         <View style={styles.panelContainer}>
           <View style={styles.panelContent}>
             <View style={styles.panelHeader}>
-              <Text style={styles.panelTitle}>Add Members</Text>
+              <Text style={styles.panelTitle}>Thêm thành viên</Text>
               <TouchableOpacity onPress={() => setIsAddMemberPanelVisible(false)}>
                 <Ionicons name="close" size={24} color="#000" />
               </TouchableOpacity>
@@ -337,7 +391,7 @@ const GroupManagement = ({ route, navigation }) => {
               <Ionicons name="search" size={20} color="#808080" />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search friends..."
+                placeholder="Tìm kiếm bạn bè..."
                 value={friendSearchQuery}
                 onChangeText={setFriendSearchQuery}
               />
@@ -353,13 +407,13 @@ const GroupManagement = ({ route, navigation }) => {
               onPress={handleAddMembers}
               disabled={selectedFriends.length === 0}
             >
-              <Text style={styles.buttonText}>Add Selected ({selectedFriends.length})</Text>
+              <Text style={styles.buttonText}>Thêm đã chọn ({selectedFriends.length})</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* Manage Members Panel */}
+      {/* Bảng quản lý thành viên */}
       <Modal
         visible={isManageMemberPanelVisible}
         animationType="slide"
@@ -368,7 +422,7 @@ const GroupManagement = ({ route, navigation }) => {
         <View style={styles.panelContainer}>
           <View style={styles.panelContent}>
             <View style={styles.panelHeader}>
-              <Text style={styles.panelTitle}>Manage Members</Text>
+              <Text style={styles.panelTitle}>Quản lý thành viên</Text>
               <TouchableOpacity onPress={() => setIsManageMemberPanelVisible(false)}>
                 <Ionicons name="close" size={24} color="#000" />
               </TouchableOpacity>
@@ -377,7 +431,7 @@ const GroupManagement = ({ route, navigation }) => {
               <Ionicons name="search" size={20} color="#808080" />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search members..."
+                placeholder="Tìm kiếm thành viên..."
                 value={manageSearchQuery}
                 onChangeText={setManageSearchQuery}
               />
@@ -392,7 +446,7 @@ const GroupManagement = ({ route, navigation }) => {
         </View>
       </Modal>
 
-      {/* Remove Member Confirmation Modal */}
+      {/* Xác nhận xóa thành viên */}
       <Modal
         visible={isRemoveModalVisible}
         transparent={true}
@@ -400,27 +454,27 @@ const GroupManagement = ({ route, navigation }) => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Remove Member</Text>
-            <Text>Are you sure you want to remove {selectedMember?.name || selectedMember?.phoneNumber}?</Text>
+            <Text style={styles.modalTitle}>Xóa thành viên</Text>
+            <Text>Bạn có chắc muốn xóa {selectedMember?.name || selectedMember?.phoneNumber}?</Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setIsRemoveModalVisible(false)}
               >
-                <Text style={styles.buttonText}>Cancel</Text>
+                <Text style={styles.buttonText}>Hủy</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.removeButton]}
                 onPress={handleRemoveMember}
               >
-                <Text style={styles.buttonText}>Remove</Text>
+                <Text style={styles.buttonText}>Xóa</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Leave Group Modal */}
+      {/* Xác nhận rời nhóm */}
       <Modal
         visible={isLeaveGroupModalVisible}
         transparent={true}
@@ -428,11 +482,11 @@ const GroupManagement = ({ route, navigation }) => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Leave Group</Text>
-            <Text>Are you sure you want to leave {groupDetail.conversationName || 'this group'}?</Text>
+            <Text style={styles.modalTitle}>Rời nhóm</Text>
+            <Text>Bạn có chắc muốn rời khỏi {groupDetail.conversationName || 'nhóm này'}?</Text>
             {isLeader && (
               <>
-                <Text style={styles.modalSubtitle}>Select a new leader:</Text>
+                <Text style={styles.modalSubtitle}>Chọn trưởng nhóm mới:</Text>
                 <FlatList
                   data={members.filter(member => member.phoneNumber !== userInfo.phoneNumber)}
                   renderItem={renderLeaderSelectionItem}
@@ -446,21 +500,21 @@ const GroupManagement = ({ route, navigation }) => {
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setIsLeaveGroupModalVisible(false)}
               >
-                <Text style={styles.buttonText}>Cancel</Text>
+                <Text style={styles.buttonText}>Hủy</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.removeButton, { opacity: isLeader && !newLeader ? 0.5 : 1 }]}
                 onPress={handleLeaveGroup}
                 disabled={isLeader && !newLeader}
               >
-                <Text style={styles.buttonText}>Leave</Text>
+                <Text style={styles.buttonText}>Rời nhóm</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Delete Group Modal */}
+      {/* Xác nhận xóa nhóm */}
       <Modal
         visible={isDeleteGroupModalVisible}
         transparent={true}
@@ -468,20 +522,20 @@ const GroupManagement = ({ route, navigation }) => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Delete Group</Text>
-            <Text>Are you sure you want to delete {groupDetail.conversationName || 'this group'}? This action cannot be undone.</Text>
+            <Text style={styles.modalTitle}>Xóa nhóm</Text>
+            <Text>Bạn có chắc muốn xóa {groupDetail.conversationName || 'nhóm này'}? Hành động này không thể hoàn tác.</Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setIsDeleteGroupModalVisible(false)}
               >
-                <Text style={styles.buttonText}>Cancel</Text>
+                <Text style={styles.buttonText}>Hủy</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.removeButton]}
                 onPress={handleDeleteGroup}
               >
-                <Text style={styles.buttonText}>Delete</Text>
+                <Text style={styles.buttonText}>Xóa</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -678,6 +732,17 @@ const styles = StyleSheet.create({
   },
   friendList: {
     flexGrow: 0,
+  },
+  adminButton: {
+    backgroundColor: '#4169E1',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginLeft: 5,
+  },
+  adminButtonText: {
+    color: '#fff',
+    fontSize: 12,
   },
 });
 

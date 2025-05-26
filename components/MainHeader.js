@@ -8,7 +8,7 @@ const MainHeader = () => {
   const [isDropdownVisible, setIsDropdownVisible] = useState(false);
 
   const dropdownOptions = [
-    { id: 'create_group', label: 'Create Group', action: () => navigation.navigate('CreateGroupScreen') },
+    { id: 'create_group', label: 'Tạo nhóm', action: () => navigation.navigate('CreateGroupScreen') },
     // Add more options here if needed
   ];
 

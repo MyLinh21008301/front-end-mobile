@@ -25,13 +25,28 @@ export const getUserInfo = async () => {
         },
       }
     );
-    return response.data;
+    // Validate essential user fields
+    const userData = response.data;
+    if (!userData || !userData.phoneNumber) {
+      console.error('Invalid user data received:', userData);
+      return null;
+    }
+
+    // Provide default values for missing but essential fields
+    if (!userData.baseImg) {
+      userData.baseImg = 'https://via.placeholder.com/150';
+    }
+    
+    if (!userData.name) {
+      userData.name = userData.phoneNumber;
+    }
+
+    return userData;
   } catch (error) {
     console.error('Error fetching user info:', error.response?.data || error.message);
     throw error;
   }
 };
-
 // Update user information
 export const updateUserInfo = async (userInfo) => {
   try {

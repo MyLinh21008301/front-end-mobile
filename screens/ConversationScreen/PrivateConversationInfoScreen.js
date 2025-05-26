@@ -22,7 +22,7 @@ const PrivateConversationInfo = ({ route, navigation }) => {
         >
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Conversation Info</Text>
+        <Text style={styles.headerTitle}>Thông tin cuộc trò chuyện</Text>
       </View>
       <View style={styles.content}>
         <Image
@@ -34,14 +34,14 @@ const PrivateConversationInfo = ({ route, navigation }) => {
           style={styles.avatar}
         />
         <Text style={styles.name}>{otherParticipant?.name || otherParticipant?.phoneNumber}</Text>
-        <Text style={styles.status}>{otherParticipant?.status || 'Offline'}</Text>
+        <Text style={styles.status}>{otherParticipant?.status || 'Ngoại tuyến'}</Text>
         <View style={styles.infoContainer}>
-          <Text style={styles.infoLabel}>Phone:</Text>
+          <Text style={styles.infoLabel}>SĐT:</Text>
           <Text style={styles.infoValue}>{otherParticipant?.phoneNumber}</Text>
         </View>
         <View style={styles.infoContainer}>
-          <Text style={styles.infoLabel}>Bio:</Text>
-          <Text style={styles.infoValue}>{otherParticipant?.bio || 'No bio available'}</Text>
+          <Text style={styles.infoLabel}>Tiểu sử:</Text>
+          <Text style={styles.infoValue}>{otherParticipant?.bio || 'Chưa có tiểu sử'}</Text>
         </View>
       </View>
     </View>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, FlatList, StyleSheet, ActivityIndicator, Text, TouchableOpacity, Modal } from 'react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import BottomNavBar from '../../components/BottomNavBar';
 import MainHeader from '../../components/MainHeader';
@@ -13,12 +13,114 @@ import { useUserInfo } from '../../contexts/UserInfoContext';
 export default function ConversationListScreen() {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
-  const { conversations, messages, socket } = useSocket();
+  const { conversations, messages, socket, isLoggedIn, token } = useSocket();
   const { userInfo } = useUserInfo();
   const [isLoading, setIsLoading] = useState(true);
   const [conversationData, setConversationData] = useState([]);
+  const [showSocketPanel, setShowSocketPanel] = useState(false);
+  const [socketStatus, setSocketStatus] = useState({
+    connected: false,
+    error: null,
+    lastEvent: null,
+    eventCount: 0,
+    connectionTime: null
+  });
   const flatListRef = useRef(null);
-  const prevMessagesRef = useRef(messages); // Initialize with current messages
+  const prevMessagesRef = useRef(messages);
+
+  // Monitor socket status
+  useEffect(() => {
+    if (!socket) {
+      setSocketStatus(prev => ({
+        ...prev,
+        connected: false,
+        error: 'Socket not initialized'
+      }));
+      return;
+    }
+
+    const handleConnect = () => {
+      console.log('Socket connected');
+      setSocketStatus(prev => ({
+        ...prev,
+        connected: true,
+        error: null,
+        connectionTime: new Date().toLocaleTimeString(),
+        lastEvent: 'Connected'
+      }));
+    };
+
+    const handleDisconnect = (reason) => {
+      console.log('Socket disconnected:', reason);
+      setSocketStatus(prev => ({
+        ...prev,
+        connected: false,
+        error: `Disconnected: ${reason}`,
+        lastEvent: 'Disconnected'
+      }));
+    };
+
+    const handleConnectError = (error) => {
+      console.log('Socket connection error:', error);
+      setSocketStatus(prev => ({
+        ...prev,
+        connected: false,
+        error: `Connection error: ${error.message || error}`,
+        lastEvent: 'Connection Error'
+      }));
+    };
+
+    const handleNewMessage = (message) => {
+      setSocketStatus(prev => ({
+        ...prev,
+        lastEvent: 'New Message Received',
+        eventCount: prev.eventCount + 1
+      }));
+    };
+
+    const handleNewConversation = (conversation) => {
+      setSocketStatus(prev => ({
+        ...prev,
+        lastEvent: 'New Conversation',
+        eventCount: prev.eventCount + 1
+      }));
+    };
+
+    // Set initial connection status
+    setSocketStatus(prev => ({
+      ...prev,
+      connected: socket.connected,
+      connectionTime: socket.connected ? new Date().toLocaleTimeString() : null
+    }));
+
+    // Add event listeners
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('connect_error', handleConnectError);
+    socket.on('newMessage', handleNewMessage);
+    socket.on('newConversation', handleNewConversation);
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleConnectError);
+      socket.off('newMessage', handleNewMessage);
+      socket.off('newConversation', handleNewConversation);
+    };
+  }, [socket]);
+
+  // Show socket panel automatically on screen focus (for debugging)
+  useEffect(() => {
+    if (isFocused) {
+      // Auto-show panel for 3 seconds when screen loads
+      setShowSocketPanel(true);
+      const timer = setTimeout(() => {
+        setShowSocketPanel(false);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isFocused]);
 
   // Helper function to parse any date/time format to a comparable timestamp
   const parseDateTime = useCallback((dateTimeStr) => {
@@ -213,16 +315,6 @@ export default function ConversationListScreen() {
     updateConversations();
   }, [updateConversations]);
 
-  // // Debug: log current order of conversation data whenever it changes
-  // useEffect(() => {
-  //   if (conversationData.length > 0) {
-  //     console.log('Current conversation order:');
-  //     conversationData.forEach((item, index) => {
-  //       console.log(`${index}: ID=${item.conversation.id}, updatedAt=${item.conversation.updatedAt}, parsedTime=${parseDateTime(item.conversation.updatedAt)}`);
-  //     });
-  //   }
-  // }, [conversationData, parseDateTime]);
-
   const getItemLayout = useCallback(
     (data, index) => ({
       length: 90,
@@ -265,10 +357,21 @@ export default function ConversationListScreen() {
   return (
     <View style={styles.container}>
       <MainHeader />
+      
+      {/* Socket Status Indicator (Always visible in corner) */}
+      <TouchableOpacity
+        style={[styles.socketIndicator, { backgroundColor: socketStatus.connected ? '#4CAF50' : '#F44336' }]}
+        onPress={() => setShowSocketPanel(true)}
+      >
+        <Text style={styles.socketIndicatorText}>
+          {socketStatus.connected ? '●' : '○'}
+        </Text>
+      </TouchableOpacity>
+
       <FlatList
         ref={flatListRef}
         style={styles.conversationsListContainer}
-        data={sortedData} // Use sorted data here
+        data={sortedData}
         keyExtractor={(item) => item.conversation.id}
         renderItem={renderItem}
         contentContainerStyle={{ paddingBottom: 70 }}
@@ -283,8 +386,88 @@ export default function ConversationListScreen() {
             flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
           }, 100);
         }}
-        extraData={sortedData.map(item => item.conversation.updatedAt).join(',')} // Better way to track updates
+        extraData={sortedData.map(item => item.conversation.updatedAt).join(',')}
       />
+
+      {/* Socket Status Panel Modal */}
+      <Modal
+        visible={showSocketPanel}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.socketPanel}>
+            <Text style={styles.panelTitle}>Socket Connection Status</Text>
+            
+            <View style={styles.statusContainer}>
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Connection:</Text>
+                <View style={[styles.statusIndicator, { backgroundColor: socketStatus.connected ? '#4CAF50' : '#F44336' }]}>
+                  <Text style={styles.statusText}>
+                    {socketStatus.connected ? '✓ Connected' : '✗ Disconnected'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Login Status:</Text>
+                <Text style={[styles.statusValue, { color: isLoggedIn ? '#4CAF50' : '#F44336' }]}>
+                  {isLoggedIn ? '✓ Logged In' : '✗ Not Logged In'}
+                </Text>
+              </View>
+
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Token:</Text>
+                <Text style={[styles.statusValue, { color: token ? '#4CAF50' : '#F44336' }]}>
+                  {token ? `✓ ${token.substring(0, 20)}...` : '✗ No Token'}
+                </Text>
+              </View>
+
+              {socketStatus.connectionTime && (
+                <View style={styles.statusRow}>
+                  <Text style={styles.statusLabel}>Connected At:</Text>
+                  <Text style={styles.statusValue}>{socketStatus.connectionTime}</Text>
+                </View>
+              )}
+
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Last Event:</Text>
+                <Text style={styles.statusValue}>{socketStatus.lastEvent || 'None'}</Text>
+              </View>
+
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Events Count:</Text>
+                <Text style={styles.statusValue}>{socketStatus.eventCount}</Text>
+              </View>
+
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Conversations:</Text>
+                <Text style={styles.statusValue}>{conversations?.length || 0}</Text>
+              </View>
+
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Messages:</Text>
+                <Text style={styles.statusValue}>{messages?.length || 0}</Text>
+              </View>
+
+              {socketStatus.error && (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorLabel}>Error:</Text>
+                  <Text style={styles.errorText}>{socketStatus.error}</Text>
+                </View>
+              )}
+            </View>
+            
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowSocketPanel(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <BottomNavBar />
     </View>
   );
@@ -302,5 +485,124 @@ const styles = StyleSheet.create({
   },
   conversationsListContainer: {
     paddingHorizontal: 8,
+  },
+  // Socket Status Indicator
+  socketIndicator: {
+    position: 'absolute',
+    top: 100,
+    right: 20,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  socketIndicatorText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  // Modal and Socket Panel Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  socketPanel: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    width: '95%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  panelTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.logoPrimary || '#007AFF',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  statusContainer: {
+    marginBottom: 20,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingVertical: 4,
+  },
+  statusLabel: {
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
+    fontWeight: '500',
+  },
+  statusValue: {
+    fontSize: 14,
+    color: '#333',
+    flex: 2,
+    textAlign: 'right',
+    fontWeight: '500',
+  },
+  statusIndicator: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    flex: 2,
+    alignItems: 'flex-end',
+  },
+  statusText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  errorContainer: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: '#ffebee',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f44336',
+  },
+  errorLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#d32f2f',
+    marginBottom: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#d32f2f',
+    lineHeight: 16,
+  },
+  closeButton: {
+    backgroundColor: Colors.btnBackground || '#007AFF',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

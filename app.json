@@ -20,7 +20,10 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.nguyenducluongea.mobilefrontendcnm"
+      "package": "com.nguyenducluongea.mobilefrontendcnm",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -33,6 +36,11 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photo library to select media."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "6b887be8-5a79-4705-811b-7d81f85d5894"
+      }
+    }
   }
 }

@@ -1,4 +1,4 @@
-// TrangCaNhan.js
+// PersonalScreen.js
 
 import React, { useLayoutEffect, useState } from 'react';
 import {
@@ -13,24 +13,35 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useUserInfo } from '../contexts/UserInfoContext'; // Điều chỉnh đường dẫn nếu cần
+import { useUserInfo } from '../contexts/UserInfoContext'; // Adjust path if needed
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { updateUserInfo } from '../apis/UserAPI'; // Import hàm API
+import { updateUserInfo } from '../apis/UserAPI'; // Import the API function
+import { changePassword } from '../apis/AuthAPI'; // Import the change password function
 import * as ImagePicker from 'expo-image-picker'; // Import ImagePicker
 
-export default function TrangCaNhan({ navigation }) {
+export default function PersonalScreen({ navigation }) {
   const { userInfo, setUserInfo } = useUserInfo();
-  const [dangChinhSua, setDangChinhSua] = useState(false);
-  const [thongTinChinhSua, setThongTinChinhSua] = useState({});
-  const [hienThiDatePicker, setHienThiDatePicker] = useState(false);
-  const [dangTai, setDangTai] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedInfo, setEditedInfo] = useState({});
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [loading, setLoading] = useState(false);
   
-  // Khởi tạo thông tin chỉnh sửa khi vào chế độ chỉnh sửa
-  const batDauChinhSua = () => {
-    setThongTinChinhSua({
+  // Change password modal states
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
+  // Initialize edited info when entering edit mode
+  const startEditing = () => {
+    setEditedInfo({
       name: userInfo.name || '',
       bio: userInfo.bio || '',
       dateOfBirth: userInfo.dateOfBirth || '',
@@ -38,176 +49,211 @@ export default function TrangCaNhan({ navigation }) {
       status: userInfo.status || '',
       baseImg: userInfo.baseImg || null,
       backgroundImg: userInfo.backgroundImg || null,
+      // Keep current images to avoid forcing updates
+      currentBaseImg: userInfo.baseImg,
+      currentBackgroundImg: userInfo.backgroundImg,
     });
-    setDangChinhSua(true);
+    setIsEditing(true);
   };
 
-  // Hủy chỉnh sửa và đặt lại dữ liệu ban đầu
-  const huyChinhSua = () => {
-    setDangChinhSua(false);
-    setThongTinChinhSua({});
+  // Cancel editing and reset to original data
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setEditedInfo({});
   };
 
-  // Xử lý thay đổi ngày từ bộ chọn ngày
-  const thayDoiNgay = (event, ngayDaChon) => {
-    setHienThiDatePicker(Platform.OS === 'ios');
-    if (ngayDaChon) {
-      const ngayDinhDang = ngayDaChon.toISOString().split('T')[0]; // Định dạng như YYYY-MM-DD
-      setThongTinChinhSua({ ...thongTinChinhSua, dateOfBirth: ngayDinhDang });
+  // Handle date change from date picker
+  const onDateChange = (event, selectedDate) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      const formattedDate = selectedDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+      setEditedInfo({ ...editedInfo, dateOfBirth: formattedDate });
     }
   };
 
-  // Chọn ảnh đại diện
-  const chonAnhDaiDien = async () => {
+  // Image picker for avatar
+  const pickAvatar = async () => {
     try {
-      // Yêu cầu quyền truy cập
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
       if (status !== 'granted') {
         Alert.alert('Cần quyền truy cập', 'Vui lòng cấp quyền truy cập thư viện ảnh để tiếp tục.');
         return;
       }
-      
-      // Mở bộ chọn ảnh
-      const ketQua = await ImagePicker.launchImageLibraryAsync({
+      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
       });
-      
-      if (!ketQua.canceled && ketQua.assets && ketQua.assets.length > 0) {
-        // Xử lý ảnh (tạo đối tượng file cho API tải lên)
-        const duongDanAnh = ketQua.assets[0].uri;
-        const tenFile = duongDanAnh.split('/').pop();
-        const match = /\.(\w+)$/.exec(tenFile);
-        const loaiFile = match ? `image/${match[1]}` : 'image';
-        
-        const fileAnh = {
-          uri: duongDanAnh,
-          name: tenFile,
-          type: loaiFile
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const imageUri = result.assets[0].uri;
+        const filename = imageUri.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image';
+        const imageFile = {
+          uri: imageUri,
+          name: filename,
+          type: type,
         };
-        
-        setThongTinChinhSua(prev => ({ ...prev, baseImg: fileAnh, baseImgPreview: duongDanAnh }));
+        setEditedInfo((prev) => ({ ...prev, baseImg: imageFile, baseImgPreview: imageUri }));
       }
     } catch (error) {
-      console.error('Lỗi khi chọn ảnh đại diện:', error);
+      console.error('Error picking avatar:', error);
       Alert.alert('Lỗi', 'Không thể chọn ảnh. Vui lòng thử lại sau.');
     }
   };
-  
-  // Chọn ảnh nền
-  const chonAnhNen = async () => {
+
+  // Image picker for background
+  const pickBackground = async () => {
     try {
-      // Yêu cầu quyền truy cập
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
       if (status !== 'granted') {
         Alert.alert('Cần quyền truy cập', 'Vui lòng cấp quyền truy cập thư viện ảnh để tiếp tục.');
         return;
       }
-      
-      // Mở bộ chọn ảnh
-      const ketQua = await ImagePicker.launchImageLibraryAsync({
+      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [16, 9], // Tốt hơn cho ảnh nền
+        aspect: [16, 9],
         quality: 0.8,
       });
-      
-      if (!ketQua.canceled && ketQua.assets && ketQua.assets.length > 0) {
-        // Xử lý ảnh (tạo đối tượng file cho API tải lên)
-        const duongDanAnh = ketQua.assets[0].uri;
-        const tenFile = duongDanAnh.split('/').pop();
-        const match = /\.(\w+)$/.exec(tenFile);
-        const loaiFile = match ? `image/${match[1]}` : 'image';
-        
-        const fileAnh = {
-          uri: duongDanAnh,
-          name: tenFile,
-          type: loaiFile
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const imageUri = result.assets[0].uri;
+        const filename = imageUri.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image';
+        const imageFile = {
+          uri: imageUri,
+          name: filename,
+          type: type,
         };
-        
-        setThongTinChinhSua(prev => ({ ...prev, backgroundImg: fileAnh, backgroundImgPreview: duongDanAnh }));
+        setEditedInfo((prev) => ({ ...prev, backgroundImg: imageFile, backgroundImgPreview: imageUri }));
       }
     } catch (error) {
-      console.error('Lỗi khi chọn ảnh nền:', error);
+      console.error('Error picking background:', error);
       Alert.alert('Lỗi', 'Không thể chọn ảnh. Vui lòng thử lại sau.');
     }
   };
 
-  // Lưu thông tin đã cập nhật
-  const luuThayDoi = async () => {
+  // Save updated information
+const saveChanges = async () => {
+  try {
+    setLoading(true);
+    if (!editedInfo.name?.trim()) {
+      Alert.alert('Thông báo', 'Vui lòng nhập họ và tên');
+      setLoading(false);
+      return;
+    }
+
+    // Prepare data for update
+    const updateData = {
+      name: editedInfo.name,
+      bio: editedInfo.bio,
+      dateOfBirth: editedInfo.dateOfBirth,
+      male: editedInfo.male,
+      status: editedInfo.status,
+    };
+
+    // Only include baseImg if it was changed (new image selected)
+    if (editedInfo.baseImgPreview && editedInfo.baseImg) {
+      updateData.baseImg = editedInfo.baseImg;
+    } else if (!editedInfo.baseImgPreview && userInfo.baseImg) {
+      // If no new image was selected, keep the current baseImg
+      updateData.baseImg = userInfo.baseImg;
+    }
+
+    // Only include backgroundImg if it was changed (new image selected)
+    if (editedInfo.backgroundImgPreview && editedInfo.backgroundImg) {
+      updateData.backgroundImg = editedInfo.backgroundImg;
+    } else if (!editedInfo.backgroundImgPreview && userInfo.backgroundImg) {
+      // If no new image was selected, keep the current backgroundImg
+      updateData.backgroundImg = userInfo.backgroundImg;
+    }
+   
+    const updatedUser = await updateUserInfo(updateData);
+    setUserInfo({ ...userInfo, ...updatedUser });
+    setIsEditing(false);
+    setLoading(false);
+    Alert.alert('Thành công', 'Thông tin cá nhân đã được cập nhật');
+  } catch (error) {
+    console.error('Error updating user info:', error);
+    setLoading(false);
+    Alert.alert('Lỗi', 'Không thể cập nhật thông tin. Vui lòng thử lại sau.');
+  }
+};
+  // Handle change password
+  const handleChangePassword = async () => {
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      Alert.alert('Thông báo', 'Vui lòng điền đầy đủ thông tin');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      Alert.alert('Thông báo', 'Mật khẩu mới và xác nhận mật khẩu không khớp');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      Alert.alert('Thông báo', 'Mật khẩu mới phải có ít nhất 6 ký tự');
+      return;
+    }
+
     try {
-      setDangTai(true);
-
-      // Xác thực trường nhập liệu
-      if (!thongTinChinhSua.name?.trim()) {
-        Alert.alert('Thông báo', 'Vui lòng nhập họ và tên');
-        setDangTai(false);
-        return;
-      }
-
-      // Gọi API để cập nhật thông tin người dùng
-      const nguoiDungDaCapNhat = await updateUserInfo(thongTinChinhSua);
-      
-      // Cập nhật context với thông tin người dùng mới
-      setUserInfo({ ...userInfo, ...nguoiDungDaCapNhat });
-      
-      setDangChinhSua(false);
-      setDangTai(false);
-      Alert.alert('Thành công', 'Thông tin cá nhân đã được cập nhật');
+      setPasswordLoading(true);
+       console.log('Update data:', passwordData.newPassword);
+      await changePassword(userInfo.phoneNumber, passwordData.newPassword, passwordData.currentPassword);
+      setPasswordLoading(false);
+      setShowPasswordModal(false);
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      Alert.alert('Thành công', 'Đổi mật khẩu thành công');
     } catch (error) {
-      console.error('Lỗi khi cập nhật thông tin người dùng:', error);
-      setDangTai(false);
-      Alert.alert('Lỗi', 'Không thể cập nhật thông tin. Vui lòng thử lại sau.');
+      setPasswordLoading(false);
+      console.error('Error changing password:', error);
+      Alert.alert('Lỗi', 'Không thể đổi mật khẩu. Vui lòng kiểm tra mật khẩu hiện tại.');
     }
   };
 
-  // Định nghĩa hàm đăng xuất
-  const xuLyDangXuat = async () => {
+  // Define the logout function
+  const handleLogout = async () => {
     try {
-      // Xóa JWT token và lịch sử tìm kiếm khỏi AsyncStorage
       await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('searchQueries');
       await AsyncStorage.removeItem('recentPeople');
-      // Đặt lại ngăn xếp điều hướng để chuyển đến màn hình Đăng nhập
       navigation.reset({
         index: 0,
         routes: [{ name: 'LoginScreen' }],
       });
     } catch (error) {
-      console.error('Lỗi trong quá trình đăng xuất:', error);
+      console.error('Error during logout:', error);
     }
   };
 
-  // Định dạng ngày để hiển thị tốt hơn
-  const dinhDangNgay = (chuoiNgay) => {
-    if (!chuoiNgay) return '';
+  // Format date for better display
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
     try {
-      const ngay = new Date(chuoiNgay);
-      return ngay.toLocaleDateString('vi-VN', {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('vi-VN', {
         year: 'numeric',
         month: 'long',
-        day: 'numeric'
+        day: 'numeric',
       });
     } catch (e) {
-      return chuoiNgay;
+      return dateString;
     }
   };
 
-  // Cấu hình tiêu đề điều hướng với nút quay lại và đăng xuất
+  // Configure the navigation header
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
       headerLeft: () => (
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.nutTieuDe}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
       ),
       headerRight: () => (
-        <TouchableOpacity onPress={xuLyDangXuat} style={styles.nutTieuDe}>
+        <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
           <Ionicons name="log-out-outline" size={24} color="#000" />
         </TouchableOpacity>
       ),
@@ -215,8 +261,9 @@ export default function TrangCaNhan({ navigation }) {
       headerTitleAlign: 'center',
       headerStyle: {
         backgroundColor: '#fff',
-        elevation: 0,
-        shadowOpacity: 0,
+        elevation: 0, // Remove shadow on Android
+        shadowOpacity: 0, // Remove shadow on iOS
+        borderBottomWidth: 0, // Remove bottom border
       },
       headerTitleStyle: {
         fontSize: 20,
@@ -225,74 +272,57 @@ export default function TrangCaNhan({ navigation }) {
     });
   }, [navigation]);
 
-  // Hiển thị mục thông tin hồ sơ cho chế độ xem
-  const hienThiMucThongTinHoSo = (tenBieuTuong, nhanMuc, giaTri) => {
-    if (!giaTri && giaTri !== false) return null;
-    
+  // Render profile info item for viewing mode
+  const renderProfileInfoItem = (iconName, label, value) => {
+    if (!value && value !== false) return null;
     return (
-      <View style={styles.mucThongTin}>
-        <Ionicons name={tenBieuTuong} size={22} color="#666" style={styles.bieuTuongThongTin} />
-        <View style={styles.khungChuaVanBanThongTin}>
-          <Text style={styles.nhanThongTin}>{nhanMuc}</Text>
-          <Text style={styles.giaTriThongTin}>{giaTri}</Text>
+      <View style={styles.infoItem}>
+        <Ionicons name={iconName} size={22} color="#666" style={styles.infoIcon} />
+        <View style={styles.infoTextContainer}>
+          <Text style={styles.infoLabel}>{label}</Text>
+          <Text style={styles.infoValue}>{value}</Text>
         </View>
       </View>
     );
   };
 
-  // Hiển thị mục thông tin hồ sơ cho chế độ chỉnh sửa
-  const hienThiMucThongTinChinhSua = (tenBieuTuong, nhanMuc, khoa, chuThich, laNgay = false, laGioiTinh = false) => {
+  // Render profile info item for editing mode
+  const renderEditableInfoItem = (iconName, label, key, placeholder, isDate = false, isGender = false) => {
     return (
-      <View style={styles.mucThongTinChinhSua}>
-        <Ionicons name={tenBieuTuong} size={22} color="#666" style={styles.bieuTuongThongTin} />
-        <View style={styles.khungChuaVanBanThongTin}>
-          <Text style={styles.nhanThongTin}>{nhanMuc}</Text>
-          
-          {laNgay ? (
-            <TouchableOpacity 
-              style={styles.nutChonNgay}
-              onPress={() => setHienThiDatePicker(true)}
-            >
-              <Text style={styles.chuNgay}>
-                {thongTinChinhSua.dateOfBirth ? dinhDangNgay(thongTinChinhSua.dateOfBirth) : 'Chọn ngày sinh'}
+      <View style={styles.editableInfoItem}>
+        <Ionicons name={iconName} size={22} color="#666" style={styles.infoIcon} />
+        <View style={styles.infoTextContainer}>
+          <Text style={styles.infoLabel}>{label}</Text>
+          {isDate ? (
+            <TouchableOpacity style={styles.datePickerButton} onPress={() => setShowDatePicker(true)}>
+              <Text style={styles.dateText}>
+                {editedInfo.dateOfBirth ? formatDate(editedInfo.dateOfBirth) : 'Chọn ngày sinh'}
               </Text>
               <Ionicons name="calendar-outline" size={18} color="#007bff" />
             </TouchableOpacity>
-          ) : laGioiTinh ? (
-            <View style={styles.khungGioiTinh}>
+          ) : isGender ? (
+            <View style={styles.genderContainer}>
               <TouchableOpacity
-                style={[
-                  styles.nutGioiTinh,
-                  thongTinChinhSua.male && styles.nutGioiTinhKichHoat
-                ]}
-                onPress={() => setThongTinChinhSua({ ...thongTinChinhSua, male: true })}
+                style={[styles.genderButton, editedInfo.male && styles.genderButtonActive]}
+                onPress={() => setEditedInfo({ ...editedInfo, male: true })}
               >
-                <Text style={[
-                  styles.chuNutGioiTinh,
-                  thongTinChinhSua.male && styles.chuNutGioiTinhKichHoat
-                ]}>Nam</Text>
+                <Text style={[styles.genderButtonText, editedInfo.male && styles.genderButtonTextActive]}>Nam</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.nutGioiTinh,
-                  !thongTinChinhSua.male && styles.nutGioiTinhKichHoat
-                ]}
-                onPress={() => setThongTinChinhSua({ ...thongTinChinhSua, male: false })}
+                style={[styles.genderButton, !editedInfo.male && styles.genderButtonActive]}
+                onPress={() => setEditedInfo({ ...editedInfo, male: false })}
               >
-                <Text style={[
-                  styles.chuNutGioiTinh,
-                  !thongTinChinhSua.male && styles.chuNutGioiTinhKichHoat
-                ]}>Nữ</Text>
+                <Text style={[styles.genderButtonText, !editedInfo.male && styles.genderButtonTextActive]}>Nữ</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <TextInput
-              style={styles.nhapLieu}
-              value={thongTinChinhSua[khoa]}
-              onChangeText={(text) => setThongTinChinhSua({ ...thongTinChinhSua, [khoa]: text })}
-              placeholder={chuThich}
-              multiline={khoa === 'bio'}
-              numberOfLines={khoa === 'bio' ? 3 : 1}
+              style={styles.input}
+              value={editedInfo[key]}
+              onChangeText={(text) => setEditedInfo({ ...editedInfo, [key]: text })}
+              placeholder={placeholder}
+              multiline={key === 'bio'}
+              numberOfLines={key === 'bio' ? 3 : 1}
             />
           )}
         </View>
@@ -301,198 +331,219 @@ export default function TrangCaNhan({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.khungAnToan}>
-      <ScrollView
-        style={styles.khungChua}
-        contentContainerStyle={styles.khungNoiDung}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.khungChuaAnhNen}>
-          {dangChinhSua ? (
-            <TouchableOpacity 
-              style={styles.khungChinhSuaAnhNen} 
-              onPress={chonAnhNen}
-              activeOpacity={0.8}
-            >
-              {thongTinChinhSua.backgroundImgPreview ? (
-                <Image
-                  source={{ uri: thongTinChinhSua.backgroundImgPreview }}
-                  style={styles.anhNen}
-                  resizeMode="cover"
-                />
+    <View style={styles.container}>
+      <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+        <View style={styles.backgroundContainer}>
+          {isEditing ? (
+            <TouchableOpacity style={styles.backgroundEditContainer} onPress={pickBackground} activeOpacity={0.8}>
+              {editedInfo.backgroundImgPreview ? (
+                <Image source={{ uri: editedInfo.backgroundImgPreview }} style={styles.backgroundImg} resizeMode="cover" />
               ) : userInfo.backgroundImg ? (
-                <Image
-                  source={{ uri: userInfo.backgroundImg }}
-                  style={styles.anhNen}
-                  resizeMode="cover"
-                />
+                <Image source={{ uri: userInfo.backgroundImg }} style={styles.backgroundImg} resizeMode="cover" />
               ) : (
-                <View style={styles.giuChoAnhNen} />
+                <View style={styles.backgroundPlaceholder} />
               )}
-              <View style={styles.loptrenChinhSua}>
+              <View style={styles.editOverlay}>
                 <Ionicons name="camera" size={24} color="#fff" />
-                <Text style={styles.chuChinhSuaAnh}>Chọn ảnh bìa</Text>
+                <Text style={styles.editImageText}>Chọn ảnh bìa</Text>
               </View>
             </TouchableOpacity>
+          ) : userInfo.backgroundImg ? (
+            <Image
+              source={{ uri: userInfo.backgroundImg }}
+              style={styles.backgroundImg}
+              resizeMode="cover"
+              onError={(e) => console.log('Background image error:', e.nativeEvent.error)}
+            />
           ) : (
-            userInfo.backgroundImg ? (
-              <Image
-                source={{ uri: userInfo.backgroundImg }}
-                style={styles.anhNen}
-                resizeMode="cover"
-                onError={(e) => console.log('Lỗi ảnh nền:', e.nativeEvent.error)}
-              />
-            ) : (
-              <View style={styles.giuChoAnhNen} />
-            )
+            <View style={styles.backgroundPlaceholder} />
           )}
         </View>
 
-        <View style={styles.khungHoSo}>
-          {dangChinhSua ? (
-            <TouchableOpacity 
-              style={styles.khungChinhSuaAnhDaiDien} 
-              onPress={chonAnhDaiDien}
-              activeOpacity={0.8}
-            >
-              {thongTinChinhSua.baseImgPreview ? (
-                <Image
-                  source={{ uri: thongTinChinhSua.baseImgPreview }}
-                  style={styles.anhDaiDien}
-                  resizeMode="cover"
-                />
+        <View style={styles.profileContainer}>
+          {isEditing ? (
+            <TouchableOpacity style={styles.avatarEditContainer} onPress={pickAvatar} activeOpacity={0.8}>
+              {editedInfo.baseImgPreview ? (
+                <Image source={{ uri: editedInfo.baseImgPreview }} style={styles.avatar} resizeMode="cover" />
               ) : userInfo.baseImg ? (
-                <Image
-                  source={{ uri: userInfo.baseImg }}
-                  style={styles.anhDaiDien}
-                  resizeMode="cover"
-                />
+                <Image source={{ uri: userInfo.baseImg }} style={styles.avatar} resizeMode="cover" />
               ) : (
-                <View style={[styles.anhDaiDien, styles.giuChoAnhDaiDien]} />
+                <View style={[styles.avatar, styles.avatarPlaceholder]} />
               )}
-              <View style={styles.lopTrenChinhSuaAnhDaiDien}>
+              <View style={styles.avatarEditOverlay}>
                 <Ionicons name="camera" size={18} color="#fff" />
               </View>
             </TouchableOpacity>
           ) : (
             <Image
               source={{ uri: userInfo.baseImg }}
-              style={styles.anhDaiDien}
+              style={styles.avatar}
               resizeMode="cover"
-              onError={(e) => console.log('Lỗi ảnh đại diện:', e.nativeEvent.error)}
+              onError={(e) => console.log('Avatar image error:', e.nativeEvent.error)}
             />
           )}
 
-          <Text style={styles.ten}>{userInfo.name || 'Không xác định'}</Text>
-          <Text style={styles.soDienThoai}>{userInfo.phoneNumber || 'N/A'}</Text>
+          <Text style={styles.name}>{userInfo.name || 'Unknown'}</Text>
+          <Text style={styles.phone}>{userInfo.phoneNumber || 'N/A'}</Text>
 
-          {/* Nút Chỉnh sửa Hồ sơ */}
-          {!dangChinhSua ? (
-            <TouchableOpacity 
-              style={styles.nutChinhSua} 
-              onPress={batDauChinhSua}
-            >
-              <Ionicons name="create-outline" size={18} color="#fff" />
-              <Text style={styles.chuNutChinhSua}>Chỉnh sửa thông tin</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.nutHanhDongChinhSua}>
-              <TouchableOpacity 
-                style={[styles.nutHanhDong, styles.nutHuy]} 
-                onPress={huyChinhSua}
-              >
-                <Text style={styles.chuNutHanhDong}>Hủy</Text>
+          {!isEditing ? (
+            <View style={styles.buttonGroup}>
+              <TouchableOpacity style={styles.editButton} onPress={startEditing}>
+                <Ionicons name="create-outline" size={18} color="#fff" />
+                <Text style={styles.editButtonText}>Chỉnh sửa thông tin</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.nutHanhDong, styles.nutLuu]} 
-                onPress={luuThayDoi}
-                disabled={dangTai}
-              >
-                {dangTai ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.chuNutHanhDong}>Lưu thay đổi</Text>
-                )}
+              <TouchableOpacity style={styles.passwordButton} onPress={() => setShowPasswordModal(true)}>
+                <Ionicons name="lock-closed-outline" size={18} color="#fff" />
+                <Text style={styles.passwordButtonText}>Đổi mật khẩu</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.editActionButtons}>
+              <TouchableOpacity style={[styles.actionButton, styles.cancelButton]} onPress={cancelEditing}>
+                <Text style={styles.actionButtonText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.actionButton, styles.saveButton]} onPress={saveChanges} disabled={loading}>
+                {loading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.actionButtonText}>Lưu thay đổi</Text>}
               </TouchableOpacity>
             </View>
           )}
 
-          <View style={styles.phanThongTin}>
-            <Text style={styles.tieuDePhan}>Thông tin cá nhân</Text>
-            
-            {dangChinhSua ? (
-              // Chế độ chỉnh sửa
+          <View style={styles.infoSection}>
+            <Text style={styles.sectionTitle}>Thông tin cá nhân</Text>
+            {isEditing ? (
               <>
-                {hienThiMucThongTinChinhSua('person', 'Họ và tên', 'name', 'Nhập họ và tên...')}
-                {hienThiMucThongTinChinhSua('calendar', 'Ngày sinh', 'dateOfBirth', 'Chọn ngày sinh...', true)}
-                {hienThiMucThongTinChinhSua('male-female', 'Giới tính', 'male', '', false, true)}
-                {hienThiMucThongTinChinhSua('document-text', 'Bio', 'bio', 'Giới thiệu về bạn...')}
-                {hienThiMucThongTinChinhSua('time', 'Trạng thái', 'status', 'Cập nhật trạng thái...')}
+                {renderEditableInfoItem('person', 'Họ và tên', 'name', 'Nhập họ và tên...')}
+                {renderEditableInfoItem('calendar', 'Ngày sinh', 'dateOfBirth', 'Chọn ngày sinh...', true)}
+                {renderEditableInfoItem('male-female', 'Giới tính', 'male', '', false, true)}
+                {renderEditableInfoItem('document-text', 'Bio', 'bio', 'Giới thiệu về bạn...')}
+                {renderEditableInfoItem('time', 'Trạng thái', 'status', 'Cập nhật trạng thái...')}
               </>
             ) : (
-              // Chế độ xem
               <>
-                {hienThiMucThongTinHoSo('person', 'Họ và tên', userInfo.name)}
-                {hienThiMucThongTinHoSo('calendar', 'Ngày sinh', dinhDangNgay(userInfo.dateOfBirth))}
-                {hienThiMucThongTinHoSo('male-female', 'Giới tính', 
-                  userInfo.male !== undefined ? (userInfo.male ? 'Nam' : 'Nữ') : 'N/A'
-                )}
-                {hienThiMucThongTinHoSo('document-text', 'Bio', userInfo.bio)}
-                {hienThiMucThongTinHoSo('time', 'Trạng thái', userInfo.status)}
-                {hienThiMucThongTinHoSo('time-outline', 'Hoạt động gần đây', 
-                  userInfo.lastOnlineTime ? new Date(userInfo.lastOnlineTime).toLocaleString('vi-VN') : 'N/A'
-                )}
+                {renderProfileInfoItem('person', 'Họ và tên', userInfo.name)}
+                {renderProfileInfoItem('calendar', 'Ngày sinh', formatDate(userInfo.dateOfBirth))}
+                {renderProfileInfoItem('male-female', 'Giới tính', userInfo.male !== undefined ? (userInfo.male ? 'Nam' : 'Nữ') : 'N/A')}
+                {renderProfileInfoItem('document-text', 'Bio', userInfo.bio)}
+                {renderProfileInfoItem('time', 'Trạng thái', userInfo.status)}
               </>
             )}
           </View>
         </View>
       </ScrollView>
 
-      {/* Hộp chọn ngày tháng cho Android */}
-      {hienThiDatePicker && (
+      {/* Change Password Modal */}
+      <Modal visible={showPasswordModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Đổi mật khẩu</Text>
+              <TouchableOpacity onPress={() => setShowPasswordModal(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalContent}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Mật khẩu hiện tại</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={passwordData.currentPassword}
+                  onChangeText={(text) => setPasswordData({...passwordData, currentPassword: text})}
+                  secureTextEntry
+                  placeholder="Nhập mật khẩu hiện tại"
+                />
+              </View>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Mật khẩu mới</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={passwordData.newPassword}
+                  onChangeText={(text) => setPasswordData({...passwordData, newPassword: text})}
+                  secureTextEntry
+                  placeholder="Nhập mật khẩu mới"
+                />
+              </View>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Xác nhận mật khẩu mới</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={passwordData.confirmPassword}
+                  onChangeText={(text) => setPasswordData({...passwordData, confirmPassword: text})}
+                  secureTextEntry
+                  placeholder="Nhập lại mật khẩu mới"
+                />
+              </View>
+            </View>
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelModalButton]} 
+                onPress={() => setShowPasswordModal(false)}
+              >
+                <Text style={styles.cancelModalButtonText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.confirmModalButton]} 
+                onPress={handleChangePassword}
+                disabled={passwordLoading}
+              >
+                {passwordLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.confirmModalButtonText}>Đổi mật khẩu</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {showDatePicker && (
         <DateTimePicker
-          value={thongTinChinhSua.dateOfBirth ? new Date(thongTinChinhSua.dateOfBirth) : new Date()}
+          value={editedInfo.dateOfBirth ? new Date(editedInfo.dateOfBirth) : new Date()}
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={thayDoiNgay}
-          maximumDate={new Date()} // Ngăn chặn ngày tương lai
+          onChange={onDateChange}
+          maximumDate={new Date()}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
-// Kiểu dáng
+// Styles
 const styles = StyleSheet.create({
-  khungAnToan: {
+  container: {
     flex: 1,
     backgroundColor: '#fff',
   },
-  khungChua: {
+  scrollContainer: {
     flex: 1,
   },
-  khungNoiDung: {
+  contentContainer: {
     paddingBottom: 30,
   },
-  khungChuaAnhNen: {
+  backgroundContainer: {
     width: '100%',
     height: 200,
     backgroundColor: '#eee',
   },
-  anhNen: {
+  backgroundImg: {
     width: '100%',
     height: '100%',
   },
-  giuChoAnhNen: {
+  backgroundPlaceholder: {
     flex: 1,
     backgroundColor: '#ccc',
   },
-  khungHoSo: {
+  profileContainer: {
     alignItems: 'center',
     marginTop: -50,
     paddingHorizontal: 20,
   },
-  anhDaiDien: {
+  avatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
@@ -500,20 +551,51 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
     backgroundColor: '#ddd',
   },
-  giuChoAnhDaiDien: {
+  avatarPlaceholder: {
     backgroundColor: '#ddd',
   },
-  ten: {
+  name: {
     fontSize: 22,
     fontWeight: '600',
     marginTop: 10,
   },
-  soDienThoai: {
+  phone: {
     fontSize: 16,
     color: '#888',
     marginBottom: 10,
   },
-  phanThongTin: {
+  buttonGroup: {
+    flexDirection: 'row',
+    marginTop: 10,
+    gap: 10,
+  },
+  editButton: {
+    flexDirection: 'row',
+    backgroundColor: '#007bff',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  editButtonText: {
+    color: '#fff',
+    marginLeft: 5,
+    fontWeight: '500',
+  },
+  passwordButton: {
+    flexDirection: 'row',
+    backgroundColor: '#28a745',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  passwordButtonText: {
+    color: '#fff',
+    marginLeft: 5,
+    fontWeight: '500',
+  },
+  infoSection: {
     width: '100%',
     marginTop: 20,
     backgroundColor: '#f9f9f9',
@@ -525,14 +607,14 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  tieuDePhan: {
+  sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 15,
     color: '#333',
     paddingHorizontal: 15,
   },
-  mucThongTin: {
+  infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
@@ -540,7 +622,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
     paddingHorizontal: 15,
   },
-  mucThongTinChinhSua: {
+  editableInfoItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     paddingVertical: 12,
@@ -548,70 +630,56 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
     paddingHorizontal: 15,
   },
-  bieuTuongThongTin: {
+  infoIcon: {
     marginRight: 12,
     marginTop: 2,
   },
-  khungChuaVanBanThongTin: {
+  infoTextContainer: {
     flex: 1,
   },
-  nhanThongTin: {
+  infoLabel: {
     fontSize: 14,
     color: '#666',
     marginBottom: 4,
   },
-  giaTriThongTin: {
+  infoValue: {
     fontSize: 16,
     color: '#333',
   },
-  nhapLieu: {
+  input: {
     fontSize: 16,
     color: '#333',
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
     paddingVertical: 5,
   },
-  nutChinhSua: {
-    flexDirection: 'row',
-    backgroundColor: '#007bff',
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 20,
-    marginTop: 10,
-    alignItems: 'center',
-  },
-  chuNutChinhSua: {
-    color: '#fff',
-    marginLeft: 5,
-    fontWeight: '500',
-  },
-  nutHanhDongChinhSua: {
+  editActionButtons: {
     flexDirection: 'row',
     marginTop: 10,
     width: '80%',
     justifyContent: 'space-between',
   },
-  nutHanhDong: {
+  actionButton: {
     paddingVertical: 8,
     paddingHorizontal: 20,
     borderRadius: 20,
     flex: 0.48,
     alignItems: 'center',
   },
-  nutLuu: {
+  saveButton: {
     backgroundColor: '#28a745',
   },
-  nutHuy: {
+  cancelButton: {
     backgroundColor: '#6c757d',
   },
-  chuNutHanhDong: {
+  actionButtonText: {
     color: '#fff',
     fontWeight: '500',
   },
-  nutTieuDe: {
-    paddingHorizontal: 15,
+  headerButton: {
+    paddingHorizontal: 10,
   },
-  nutChonNgay: {
+  datePickerButton: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -619,15 +687,15 @@ const styles = StyleSheet.create({
     borderBottomColor: '#ddd',
     paddingVertical: 10,
   },
-  chuNgay: {
+  dateText: {
     fontSize: 16,
     color: '#333',
   },
-  khungGioiTinh: {
+  genderContainer: {
     flexDirection: 'row',
     marginTop: 5,
   },
-  nutGioiTinh: {
+  genderButton: {
     paddingVertical: 8,
     paddingHorizontal: 20,
     borderRadius: 20,
@@ -635,23 +703,22 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     marginRight: 10,
   },
-  nutGioiTinhKichHoat: {
+  genderButtonActive: {
     backgroundColor: '#007bff',
     borderColor: '#007bff',
   },
-  chuNutGioiTinh: {
+  genderButtonText: {
     color: '#333',
   },
-  chuNutGioiTinhKichHoat: {
+  genderButtonTextActive: {
     color: '#fff',
   },
-  // Kiểu dáng mới cho chỉnh sửa ảnh
-  khungChinhSuaAnhNen: {
+  backgroundEditContainer: {
     width: '100%',
     height: '100%',
     position: 'relative',
   },
-  loptrenChinhSua: {
+  editOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
@@ -661,16 +728,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  chuChinhSuaAnh: {
+  editImageText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
     marginTop: 8,
   },
-  khungChinhSuaAnhDaiDien: {
+  avatarEditContainer: {
     position: 'relative',
   },
-  lopTrenChinhSuaAnhDaiDien: {
+  avatarEditOverlay: {
     position: 'absolute',
     bottom: 0,
     right: 0,
@@ -682,5 +749,81 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#fff',
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    width: '100%',
+    maxWidth: 400,
+    paddingVertical: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#333',
+  },
+  modalContent: {
+    paddingHorizontal: 20,
+  },
+  inputGroup: {
+    marginBottom: 15,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginTop: 20,
+    gap: 10,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelModalButton: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  cancelModalButtonText: {
+    color: '#666',
+    fontWeight: '500',
+  },
+  confirmModalButton: {
+    backgroundColor: '#007bff',
+  },
+  confirmModalButtonText: {
+    color: '#fff',
+    fontWeight: '500',
   },
 });

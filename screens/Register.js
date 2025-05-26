@@ -8,27 +8,27 @@ import {
   TouchableOpacity,
   Switch,
   Image,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import React, { useState } from "react";
 import { FontAwesome } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import axios from 'axios';
-import Colors from "../constants/colors"; 
-import { registerUser } from '../apis/AuthAPI'; 
-
-
+import Colors from "../constants/colors";
+import { registerUser, sendOtp, verifyOtp } from "../apis/AuthAPI";
 
 export default function RegisterScreen({ navigation }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("+84");
   const [password, setPassword] = useState("");
   const [gender, setGender] = useState(true);
-  // state cho avatar
   const [avatar, setAvatar] = useState(null);
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [showPicker, setShowPicker] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Hàm xử lý khi chọn ngày
   const onDateChange = (event, selectedDate) => {
     setShowPicker(false);
     if (selectedDate) {
@@ -38,7 +38,7 @@ export default function RegisterScreen({ navigation }) {
       setDateOfBirth(`${year}-${month}-${day}`);
     }
   };
-  // Hàm chọn ảnh
+
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -52,22 +52,39 @@ export default function RegisterScreen({ navigation }) {
     }
   };
 
+  const handleSendOtp = async () => {
+    if (!name || !dateOfBirth || !phone || !password) {
+      Alert.alert('Lỗi', 'Vui lòng điền đầy đủ thông tin');
+      return;
+    }
 
+    setLoading(true);
+    try {
+      await sendOtp(phone);
+      setOtpSent(true);
+      Alert.alert('Thành công', 'Mã OTP đã được gửi đến số điện thoại của bạn');
+    } catch (error) {
+      Alert.alert('Lỗi', error.message || 'Không thể gửi OTP. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleRegister = async () => {
+    if (!otp) {
+      Alert.alert('Lỗi', 'Vui lòng nhập mã OTP');
+      return;
+    }
+
+    setLoading(true);
     try {
-      if (!name || !dateOfBirth || !phone || !password) {
-        alert('Vui lòng điền đầy đủ thông tin!');
-        return;
-      }
-  
       const formData = new FormData();
       formData.append('name', name);
       formData.append('dateOfBirth', dateOfBirth);
       formData.append('phone', phone);
       formData.append('password', password);
       formData.append('gender', gender.toString());
-  
+
       if (avatar) {
         formData.append('avatar', {
           uri: avatar,
@@ -75,19 +92,23 @@ export default function RegisterScreen({ navigation }) {
           name: 'avatar.jpg',
         });
       }
-  
-      const data = await registerUser(formData);
-  
+
+      const data = await registerUser(formData, phone, otp);
+
       if (data.success) {
-        alert(data.message || 'Đăng ký thành công!');
-        navigation.navigate('LoginScreen');
+        Alert.alert(data.message || 'Đăng ký thành công!', [
+          { text: 'OK', onPress: () => navigation.navigate('LoginScreen') },
+        ]);
       } else {
-        alert('Đăng ký thất bại. Vui lòng kiểm tra lại thông tin.');
+        Alert.alert('Lỗi', data.message || 'Đăng ký thất bại. Vui lòng kiểm tra lại thông tin.');
       }
     } catch (error) {
-      alert('Đã có lỗi xảy ra. Vui lòng thử lại sau.');
+      Alert.alert('Lỗi', error.message || 'Đã có lỗi xảy ra. Vui lòng thử lại sau.');
+    } finally {
+      setLoading(false);
     }
   };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -95,89 +116,118 @@ export default function RegisterScreen({ navigation }) {
         <Text style={styles.appName}>Zala</Text>
       </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Họ và tên"
-        value={name}
-        onChangeText={setName}
-      />
+      {!otpSent ? (
+        <>
+          <TextInput
+            style={styles.input}
+            placeholder="Họ và tên"
+            value={name}
+            onChangeText={setName}
+          />
 
-      <View style={styles.inputWithDate}>
-        <TextInput
-          style={styles.inputDate}
-          placeholder="Ngày sinh (YYYY-MM-DD)"
-          value={dateOfBirth}
-          editable={false}
-        />
-        <TouchableOpacity
-          onPress={() => setShowPicker(true)}
-          style={styles.calendarIcon}
-        >
-          <FontAwesome name="calendar" size={20} color="#888" />
-        </TouchableOpacity>
-      </View>
+          <View style={styles.inputWithDate}>
+            <TextInput
+              style={styles.inputDate}
+              placeholder="Ngày sinh (YYYY-MM-DD)"
+              value={dateOfBirth}
+              editable={false}
+            />
+            <TouchableOpacity
+              onPress={() => setShowPicker(true)}
+              style={styles.calendarIcon}
+            >
+              <FontAwesome name="calendar" size={20} color="#888" />
+            </TouchableOpacity>
+          </View>
 
-      {showPicker && (
-        <DateTimePicker
-          value={dateOfBirth ? new Date(dateOfBirth) : new Date()}
-          mode="date"
-          display="default"
-          onChange={onDateChange}
-          maximumDate={new Date()} 
-        />
+          {showPicker && (
+            <DateTimePicker
+              value={dateOfBirth ? new Date(dateOfBirth) : new Date()}
+              mode="date"
+              display="default"
+              onChange={onDateChange}
+              maximumDate={new Date()}
+            />
+          )}
+
+          <TextInput
+            style={styles.inputPhone}
+            placeholder="Số điện thoại"
+            keyboardType="phone-pad"
+            value={phone}
+            onChangeText={setPhone}
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Mật khẩu"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
+
+          <View style={styles.genderContainer}>
+            <Text style={styles.genderLabel}>Giới tính:</Text>
+            <Text style={styles.genderText}>{gender ? "Nam" : "Nữ"}</Text>
+            <Switch
+              value={gender}
+              onValueChange={setGender}
+              thumbColor={gender ? Colors.primary : "#888"}
+              style={styles.switch}
+            />
+          </View>
+
+          <View style={styles.avatarRow}>
+            {avatar ? (
+              <Image source={{ uri: avatar }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.placeholder}>
+                <FontAwesome name="image" size={50} color="#ccc" />
+              </View>
+            )}
+            <TouchableOpacity onPress={pickImage} style={styles.uploadButton}>
+              <FontAwesome name="image" size={20} color="#007BFF" />
+              <Text style={styles.uploadButtonText}>
+                {avatar ? "Chọn lại ảnh đại diện" : "Chọn ảnh đại diện"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.registerButton, loading && { opacity: 0.6 }]}
+            onPress={handleSendOtp}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.registerText}>Gửi OTP</Text>
+            )}
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <TextInput
+            style={styles.input}
+            placeholder="Mã OTP"
+            value={otp}
+            onChangeText={setOtp}
+            keyboardType="numeric"
+          />
+          <TouchableOpacity
+            style={[styles.registerButton, loading && { opacity: 0.6 }]}
+            onPress={handleRegister}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.registerText}>Đăng ký</Text>
+            )}
+          </TouchableOpacity>
+        </>
       )}
 
-      <TextInput
-        style={styles.inputPhone}
-        placeholder="Số điện thoại"
-        keyboardType="phone-pad"
-        value={phone}
-        onChangeText={setPhone}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Mật khẩu"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-
-      <View style={styles.genderContainer}>
-        <Text style={styles.genderLabel}>Giới tính:</Text>
-        <Text style={styles.genderText}>{gender ? "Nam" : "Nữ"}</Text>
-        <Switch
-          value={gender}
-          onValueChange={setGender}
-          thumbColor={gender ? Colors.primary : "#888"}
-          style={styles.switch}
-        />
-      </View>
-      <View style={styles.avatarRow}>
-        {avatar ? (
-          <Image source={{ uri: avatar }} style={styles.avatarImage} />
-        ) : (
-          <View style={styles.placeholder}>
-            <FontAwesome name="image" size={50} color="#ccc" />
-          </View>
-        )}
-
-        <TouchableOpacity onPress={pickImage} style={styles.uploadButton}>
-          <FontAwesome
-            name="image"
-            size={20}
-            color="#007BFF"
-            style={styles.icon}
-          />
-          <Text style={styles.uploadButtonText}>
-            {avatar ? "Chọn lại ảnh đại diện" : "Chọn ảnh đại diện"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
-        <Text style={styles.registerText}>Đăng ký</Text>
-      </TouchableOpacity>
       <View style={styles.loginContainer}>
         <Text style={styles.loginLink}>Đã có tài khoản Zala?</Text>
         <TouchableOpacity onPress={() => navigation.navigate("LoginScreen")}>
@@ -201,7 +251,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 40,
-    // marginTop: 20
   },
   title: {
     fontSize: 30,
@@ -211,7 +260,7 @@ const styles = StyleSheet.create({
     fontSize: 50,
     color: Colors.logoPrimary,
     fontWeight: "bold",
-    marginLeft:15
+    marginLeft: 15,
   },
   inputPhone: {
     width: "100%",
@@ -243,17 +292,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginRight: 10,
   },
-  genderText:{
+  genderText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#FF0000'
+    color: '#FF0000',
   },
-  switch:{
-    marginLeft:30
+  switch: {
+    marginLeft: 30,
   },
-
   inputWithDate: {
-    width:"100%",
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
@@ -263,14 +311,12 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     paddingRight: 10,
   },
-
   inputDate: {
     flex: 1,
     padding: 12,
     fontSize: 16,
     color: "#000",
   },
-
   calendarIcon: {
     padding: 8,
   },
@@ -280,7 +326,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     marginVertical: 10,
   },
-
   avatarImage: {
     width: 100,
     height: 100,
@@ -289,7 +334,6 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
     marginRight: 15,
   },
-
   placeholder: {
     width: 100,
     height: 100,
@@ -300,7 +344,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 15,
   },
-
   uploadButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -314,7 +357,6 @@ const styles = StyleSheet.create({
     color: "#007BFF",
     marginLeft: 10,
   },
-
   registerButton: {
     backgroundColor: Colors.btnBackground,
     paddingVertical: 12,
