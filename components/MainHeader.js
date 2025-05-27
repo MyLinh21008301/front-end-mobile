@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, Modal, FlatList, Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import AntDesign from '@expo/vector-icons/AntDesign';
+
 
 const MainHeader = () => {
   const navigation = useNavigation();
@@ -35,9 +37,9 @@ const MainHeader = () => {
   return (
     <View style={styles.container}>
       {/* Left: Back Button */}
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
+      {/* <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
         <Ionicons name="arrow-back" size={24} color="#000" />
-      </TouchableOpacity>
+      </TouchableOpacity> */}
 
       {/* Center: Search Bar */}
       <TouchableOpacity
@@ -47,7 +49,7 @@ const MainHeader = () => {
         <Ionicons name="search" size={24} color="gray" style={{ marginRight: 6 }} />
         <TextInput
           editable={false}
-          placeholder="Search..."
+          placeholder="Tìm kiếm..."
           placeholderTextColor="gray"
           style={{ color: 'gray', flex: 1 }}
           pointerEvents="none"
@@ -56,7 +58,7 @@ const MainHeader = () => {
 
       {/* Right: Add Button */}
       <TouchableOpacity onPress={openAdditionalOptionPanel} style={styles.iconButton}>
-        <Ionicons name="add" size={28} color="#000" />
+        <AntDesign name="addusergroup" size={24} color="black" />
       </TouchableOpacity>
 
       {/* Dropdown Modal */}

@@ -17,21 +17,55 @@ import { useReactionPicker } from '../../../contexts/ReactionPickerContext';
 
 const formatMessageTime = (timestamp) => {
   if (!timestamp) return '';
-  const messageDate = new Date(timestamp);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const msgDate = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
-  const diffTime = today.getTime() - msgDate.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  const timeString = messageDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-  if (diffDays === 0) return timeString;
-  else if (diffDays === 1) return `Hôm qua ${timeString}`;
-  else if (diffDays === 2) return `Hôm kia ${timeString}`;
-  else if (diffDays >= 3 && diffDays <= 7) return `${diffDays} ngày trước ${timeString}`;
-  else {
-    const dateString = messageDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    return `${dateString} ${timeString}`;
+  let messageDate;
+  try {
+    // Handle ISO format with nanoseconds (e.g., "2025-04-21T15:39:36.994258700Z")
+    if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+/.test(timestamp)) {
+      messageDate = new Date(timestamp.replace(/(\.\d{3})\d+(Z)?/, '$1Z'));
+    } else if (/^\d{2}:\d{2}$/.test(timestamp)) {
+      // Handle HH:mm format (e.g., "16:43")
+      const today = new Date();
+      const [hours, minutes] = timestamp.split(':').map(Number);
+      today.setHours(hours, minutes, 0, 0);
+      messageDate = today;
+    } else {
+      // Handle standard ISO format or other valid date strings
+      messageDate = new Date(timestamp);
+    }
+
+    // Check if the date is valid
+    if (isNaN(messageDate.getTime())) {
+      console.warn('Invalid timestamp:', timestamp);
+      return '';
+    }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const msgDate = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
+    const diffTime = today.getTime() - msgDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const timeString = messageDate.toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+
+    if (diffDays === 0) return timeString;
+    else if (diffDays === 1) return `Hôm qua ${timeString}`;
+    else if (diffDays === 2) return `Hôm kia ${timeString}`;
+    else if (diffDays >= 3 && diffDays <= 7) return `${diffDays} ngày trước ${timeString}`;
+    else {
+      const dateString = messageDate.toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+      return `${dateString} ${timeString}`;
+    }
+  } catch (error) {
+    console.error('Error parsing timestamp:', timestamp, error);
+    return '';
   }
 };
 

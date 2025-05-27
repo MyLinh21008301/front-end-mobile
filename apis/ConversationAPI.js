@@ -4,6 +4,7 @@ import { getToken } from './TokenAPI';
 import { Platform } from 'react-native';
 
 const CONVERSATION_API = {
+
   base: `${BASE_URL}/conversations`,
   initConversation: `${BASE_URL}/conversations/initialize`,
   markAsRead: `${BASE_URL}/conversations/mark-as-read`,
@@ -18,6 +19,7 @@ const CONVERSATION_API = {
   searchMembers: `${BASE_URL}/conversations`,
   updateAdmin: `${BASE_URL}/conversations`,
   updateGroupInfo: `${BASE_URL}/conversations`,
+  fetchConversations: `${BASE_URL}/conversations/`,
 };
 
 const getAuthHeaders = (jwt) => ({
@@ -30,6 +32,22 @@ const getMultipartHeaders = (jwt) => ({
   'Authorization': `Bearer ${jwt}`,
 });
 
+export const fetchGroups = async (jwt) => {
+  console.log('fetchGroups called with token:', jwt.substring(0, 20) + '...');
+  try {
+    const response = await axios.get(CONVERSATION_API.fetchConversations, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${jwt}`,
+      },
+    });
+    console.log('fetchGroups response:', response.data);
+    return response.data.filter((conv) => conv.type === 'GROUP');
+  } catch (error) {
+    console.error('Error fetching groups:', error.response?.data || error.message);
+    throw error;
+  }
+};
 // Get all conversations
 export const getConversations = async (jwt) => {
   try {

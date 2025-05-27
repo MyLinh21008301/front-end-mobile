@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Image, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import { getGroupMembers, removeMember, addMembers, searchMembers, updateAdmin } from '../../apis/ConversationAPI';
 import { getFriendsList } from '../../apis/FriendsAPI';
 import { getToken } from '../../apis/TokenAPI';

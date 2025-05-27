@@ -53,11 +53,10 @@ const ConversationScreen = ({ navigation }) => {
   const handleCancelReply = () => {
     setReplyToMessage(null);
   };
-
-  React.useEffect(() => {
+  useEffect(() => {
     const fetchParticipantsInfo = async () => {
       if (!currentConversation || !myInfo?.phoneNumber) return;
-
+  
       setIsLoadingParticipants(true);
       try {
         const participants = currentConversation.participants.filter((p) => p !== myInfo.phoneNumber);
@@ -67,12 +66,13 @@ const ConversationScreen = ({ navigation }) => {
         }, {});
         initialParticipantsInfo[myInfo.phoneNumber] = { ...myInfo, name: myInfo.name || myInfo.phoneNumber };
         setParticipantsInfo(initialParticipantsInfo);
-
+  
         if (participants.length > 0) {
           const participantsData = await Promise.all(
             participants.map(async (phone) => {
               try {
                 const data = await findFirstPersonByPhone(phone);
+                console.log(`API response for ${phone}:`, data); // Log để debug
                 return { phone, data };
               } catch (error) {
                 console.warn(`Failed to fetch info for ${phone}:`, error);
@@ -80,32 +80,86 @@ const ConversationScreen = ({ navigation }) => {
               }
             })
           );
-
+  
           const updatedParticipantsInfo = { ...initialParticipantsInfo };
           participantsData.forEach(({ phone, data }) => {
             if (data) {
-              updatedParticipantsInfo[phone] = { ...data, name: data.name || data.phoneNumber || phone };
+              updatedParticipantsInfo[phone] = {
+                phoneNumber: data.phoneNumber || phone,
+                name: data.name || phone,
+                avatar: data.baseImg || null,
+                status: data.status || 'Offline',
+                backgroundImg: data.backgroundImg || null,
+                dateOfBirth: data.dateOfBirth || null,
+                male: data.male !== undefined ? data.male : null,
+                bio: data.bio || null,
+                lastOnlineTime: data.lastOnlineTime || null,
+              };
+            } else {
+              updatedParticipantsInfo[phone] = {
+                phoneNumber: phone,
+                name: phone,
+                avatar: null,
+                status: 'Offline',
+                backgroundImg: null,
+                dateOfBirth: null,
+                male: null,
+                bio: null,
+                lastOnlineTime: null,
+              };
             }
           });
           setParticipantsInfo(updatedParticipantsInfo);
-
-          if (currentConversation.type === 'private') {
+  
+          if (currentConversation.type === 'PRIVATE') {
             const friendPhone = participants[0];
-            const friendInfo = updatedParticipantsInfo[friendPhone];
-            setHeaderInfo({ ...friendInfo, conversation: currentConversation, isGroup: false });
+            const friendInfo = updatedParticipantsInfo[friendPhone] || {
+              phoneNumber: friendPhone,
+              name: friendPhone,
+              avatar: null,
+              status: 'Offline',
+              backgroundImg: null,
+              dateOfBirth: null,
+              male: null,
+              bio: null,
+              lastOnlineTime: null,
+            };
+            console.log('Setting headerInfo for PRIVATE:', friendInfo); // Log để debug
+            setHeaderInfo({
+              phoneNumber: friendInfo.phoneNumber,
+              name: friendInfo.name,
+              avatar: friendInfo.avatar || currentConversation.conversationImgUrl,
+              status: friendInfo.status,
+              backgroundImg: friendInfo.backgroundImg,
+              dateOfBirth: friendInfo.dateOfBirth,
+              male: friendInfo.male,
+              bio: friendInfo.bio,
+              lastOnlineTime: friendInfo.lastOnlineTime,
+              conversation: currentConversation,
+              isGroup: false, // Sửa isGroup
+            });
           } else {
+            console.log('Setting headerInfo for GROUP'); // Log để debug
             setHeaderInfo({
               name: currentConversation.conversationName || 'Group Chat',
               avatar: currentConversation.conversationImgUrl,
-              isGroup: true,
               conversation: currentConversation,
+              isGroup: true,
             });
           }
         } else {
-          if (currentConversation.type === 'private') {
+          console.warn('No participants found for conversation:', currentConversation.id);
+          if (currentConversation.type === 'PRIVATE') {
             setHeaderInfo({
-              name: 'Unknown User',
               phoneNumber: 'Unknown',
+              name: 'Unknown User',
+              avatar: null,
+              status: 'Offline',
+              backgroundImg: null,
+              dateOfBirth: null,
+              male: null,
+              bio: null,
+              lastOnlineTime: null,
               conversation: currentConversation,
               isGroup: false,
             });
@@ -113,23 +167,35 @@ const ConversationScreen = ({ navigation }) => {
             setHeaderInfo({
               name: currentConversation.conversationName || 'Group Chat',
               avatar: currentConversation.conversationImgUrl,
-              isGroup: true,
               conversation: currentConversation,
+              isGroup: true,
             });
           }
         }
       } catch (error) {
         console.error('Error fetching participants info:', error);
-        if (currentConversation.type === 'private') {
+        if (currentConversation.type === 'PRIVATE') {
           const participants = currentConversation.participants.filter((p) => p !== myInfo.phoneNumber);
           const friendPhone = participants[0] || 'Unknown';
-          setHeaderInfo({ phoneNumber: friendPhone, name: friendPhone, conversation: currentConversation, isGroup: false });
+          setHeaderInfo({
+            phoneNumber: friendPhone,
+            name: friendPhone,
+            avatar: null,
+            status: 'Offline',
+            backgroundImg: null,
+            dateOfBirth: null,
+            male: null,
+            bio: null,
+            lastOnlineTime: null,
+            conversation: currentConversation,
+            isGroup: false,
+          });
         } else {
           setHeaderInfo({
             name: currentConversation.conversationName || 'Group Chat',
             avatar: currentConversation.conversationImgUrl,
-            isGroup: true,
             conversation: currentConversation,
+            isGroup: true,
           });
         }
       } finally {

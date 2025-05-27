@@ -6,6 +6,11 @@ import { Ionicons } from '@expo/vector-icons';
 // Function to parse createdAt
 const parseCreatedAt = (createdAt) => {
   try {
+    // Handle ISO format with nanoseconds (e.g., "2025-04-21T15:39:36.994258700Z")
+    if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+/.test(createdAt)) {
+      return new Date(createdAt.replace(/(\.\d{3})\d+(Z)?/, '$1Z'));
+    }
+
     // Handle HH:mm format (e.g., "16:43")
     if (/^\d{2}:\d{2}$/.test(createdAt)) {
       const today = new Date();
@@ -13,10 +18,13 @@ const parseCreatedAt = (createdAt) => {
       today.setHours(hours, minutes, 0, 0);
       return today;
     }
-    // Handle ISO format with nanoseconds (e.g., "2025-04-21T15:39:36.994258700")
-    if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+/.test(createdAt)) {
-      return new Date(createdAt.replace(/(\.\d{3})\d+/, '$1Z'));
+
+    // Handle standard ISO format (e.g., "2025-04-21T15:39:36Z")
+    const date = new Date(createdAt);
+    if (!isNaN(date.getTime())) {
+      return date;
     }
+
     // Fallback: return current date/time
     console.warn('Invalid createdAt format:', createdAt);
     return new Date();
@@ -73,7 +81,7 @@ const ConversationItem = ({ conversation, userInfo, onPress }) => {
     if (!latestMessage) return '';
     
     if (latestMessage.senderId === userInfo.phoneNumber) {
-      return 'You: ';
+      return 'Bạn: ';
     }
     
     if (conversation.type === 'GROUP') {
@@ -107,7 +115,7 @@ const ConversationItem = ({ conversation, userInfo, onPress }) => {
           style={styles.avatar}
         />
         {friendInfo?.status === 'Online' && conversation.type === 'PRIVATE' && (
-          <View style={styles.onlineIndicator} />
+          <View style={styles.onlineIndicator}> </View>
         )}
       </View>
       <View style={styles.conversationInfo}>
@@ -141,8 +149,8 @@ const ConversationItem = ({ conversation, userInfo, onPress }) => {
                 ? latestMessage.content
                 : latestMessage.type === 'MEDIA' || latestMessage.type === 'FILE'
                 ? latestMessage.content.includes('.mp4')
-                  ? 'Sent a video'
-                  : 'Sent a file'
+                  ? 'Đã gửi 1 video'
+                  : 'Đã gửi 1 tệp'
                 : 'Định dạng không xác định'}
             </Text>
             {latestMessage.senderId !== userInfo.phoneNumber && !latestMessage.read && (
@@ -151,7 +159,7 @@ const ConversationItem = ({ conversation, userInfo, onPress }) => {
           </View>
         ) : (
           <Text style={styles.latestMessage} numberOfLines={1}>
-            Chưa có tin nhắn
+           Bắt đầu cuộc trò chuyện
           </Text>
         )}
       </View>

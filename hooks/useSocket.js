@@ -72,7 +72,7 @@ const useSocket = (url, token) => {
             return {
               ...conv,
               lastMessage: message,
-              updatedAt: message.createdAt, // Optional: update timestamp if server doesn't
+              updatedAt: message.createdAt, // Use message.createdAt from server
             };
           }
           return conv;
@@ -85,7 +85,7 @@ const useSocket = (url, token) => {
             currentConversation: {
               ...prev.currentConversation,
               messageDetails: [...prev.currentConversation.messageDetails, message],
-              lastMessage: message, // Ensure currentConversation stays in sync
+              lastMessage: message,
             },
             messages: [...prev.messages, message],
           };

@@ -125,35 +125,37 @@ export default function ConversationListScreen() {
   // Helper function to parse any date/time format to a comparable timestamp
   const parseDateTime = useCallback((dateTimeStr) => {
     try {
-      // First try to parse as a complete ISO timestamp
-      const date = new Date(dateTimeStr);
-      
-      // Check if it's a valid date
-      if (!isNaN(date.getTime())) {
-        return date.getTime();
+      // Handle ISO format with nanoseconds (e.g., "2025-04-21T15:39:36.994258700Z")
+      if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+/.test(dateTimeStr)) {
+        return new Date(dateTimeStr.replace(/(\.\d{3})\d+(Z)?/, '$1Z')).getTime();
       }
-      
-      // If not a valid complete timestamp, try to parse partial formats
-      
-      // Format like "17:14" (HH:MM today)
+  
+      // Handle HH:mm format (e.g., "17:14")
       if (/^\d{1,2}:\d{2}$/.test(dateTimeStr)) {
         const [hours, minutes] = dateTimeStr.split(':').map(Number);
         const today = new Date();
         today.setHours(hours, minutes, 0, 0);
         return today.getTime();
       }
-      
-      // Format like "15-04-2025" (DD-MM-YYYY)
+  
+      // Handle DD-MM-YYYY format (e.g., "15-04-2025")
       if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dateTimeStr)) {
         const [day, month, year] = dateTimeStr.split('-').map(Number);
         return new Date(year, month - 1, day).getTime();
       }
-      
-      // If we can't parse it, return a very old date (will sort to bottom)
+  
+      // Handle full ISO format (e.g., "2025-04-21T15:39:36Z")
+      const date = new Date(dateTimeStr);
+      if (!isNaN(date.getTime())) {
+        return date.getTime();
+      }
+  
+      // Fallback to a very old date if parsing fails
+      console.warn('Failed to parse date:', dateTimeStr);
       return new Date(0).getTime();
     } catch (error) {
       console.error('Failed to parse date:', dateTimeStr, error);
-      return new Date(0).getTime(); // Default to very old date
+      return new Date(0).getTime();
     }
   }, []);
 
@@ -241,75 +243,74 @@ export default function ConversationListScreen() {
   }, [socket, userInfo?.phoneNumber, isFocused, sortConversationsByUpdatedAt]);
 
   // Update conversation list when new messages arrive
-  const updateConversations = useCallback(() => {
-    if (!isFocused || !messages.length || !userInfo?.phoneNumber) return;
+// Update conversation list when new messages arrive
+const updateConversations = useCallback(() => {
+  if (!isFocused || !messages.length || !userInfo?.phoneNumber) return;
 
-    const newMessages = messages.filter(
-      (msg) => !prevMessagesRef.current.some((prevMsg) => prevMsg.id === msg.id)
-    );
+  const newMessages = messages.filter(
+    (msg) => !prevMessagesRef.current.some((prevMsg) => prevMsg.id === msg.id)
+  );
 
-    if (newMessages.length === 0) return;
+  if (newMessages.length === 0) return;
 
-    console.log('New messages received:', newMessages);
+  console.log('New messages received:', newMessages);
 
-    setConversationData((prevData) => {
-      let updatedData = [...prevData];
-      let needsResorting = false;
+  setConversationData((prevData) => {
+    let updatedData = [...prevData];
+    let needsResorting = false;
 
-      newMessages.forEach((newMessage) => {
-        const conversationIndex = updatedData.findIndex(
-          (item) => item.conversation.id === newMessage.conversationId
-        );
+    newMessages.forEach((newMessage) => {
+      const conversationIndex = updatedData.findIndex(
+        (item) => item.conversation.id === newMessage.conversationId
+      );
 
-        if (conversationIndex !== -1) {
-          const currentConversation = updatedData[conversationIndex].conversation;
-          
-          // Create timestamp in format like "2025-04-21T17:15:00.000Z"
-          const now = new Date();
-          const timestamp = now.toISOString();
-          
-          // Update the conversation with new message and set updatedAt to current timestamp
-          updatedData[conversationIndex] = {
-            conversation: {
-              ...currentConversation,
-              lastMessage: newMessage,
-              updatedAt: timestamp, // Use ISO format timestamp
-            }
-          };
-          
-          needsResorting = true;
-        } else {
-          console.warn('Message received for unknown conversation:', newMessage.conversationId);
-        }
-      });
-
-      // Only resort if we have updates
-      if (needsResorting) {
-        updatedData = sortConversationsByUpdatedAt(updatedData);
+      if (conversationIndex !== -1) {
+        const currentConversation = updatedData[conversationIndex].conversation;
         
-        // Log the new order for debugging
-        console.log('Sorted conversations after updates:',
-          updatedData.map(item => ({
-            id: item.conversation.id.substring(0, 10) + '...',
-            updatedAt: item.conversation.updatedAt,
-            parsedTime: parseDateTime(item.conversation.updatedAt)
-          }))
-        );
+        // Use the message's createdAt timestamp for updatedAt
+        const timestamp = newMessage.createdAt || new Date().toISOString(); // Fallback to current time if createdAt is missing
         
-        // Scroll to top if needed
-        if (flatListRef.current) {
-          setTimeout(() => {
-            flatListRef.current.scrollToOffset({ offset: 0, animated: true });
-          }, 100);
-        }
+        // Update the conversation with new message and set updatedAt to message's createdAt
+        updatedData[conversationIndex] = {
+          conversation: {
+            ...currentConversation,
+            lastMessage: newMessage,
+            updatedAt: timestamp,
+          }
+        };
+        
+        needsResorting = true;
+      } else {
+        console.warn('Message received for unknown conversation:', newMessage.conversationId);
       }
-
-      return updatedData;
     });
 
-    prevMessagesRef.current = [...messages];
-  }, [isFocused, messages, userInfo?.phoneNumber, sortConversationsByUpdatedAt, parseDateTime]);
+    // Only resort if we have updates
+    if (needsResorting) {
+      updatedData = sortConversationsByUpdatedAt(updatedData);
+      
+      // Log the new order for debugging
+      console.log('Sorted conversations after updates:',
+        updatedData.map(item => ({
+          id: item.conversation.id.substring(0, 10) + '...',
+          updatedAt: item.conversation.updatedAt,
+          parsedTime: parseDateTime(item.conversation.updatedAt)
+        }))
+      );
+      
+      // Scroll to top if needed
+      if (flatListRef.current) {
+        setTimeout(() => {
+          flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+        }, 100);
+      }
+    }
 
+    return updatedData;
+  });
+
+  prevMessagesRef.current = [...messages];
+}, [isFocused, messages, userInfo?.phoneNumber, sortConversationsByUpdatedAt, parseDateTime]);
   // Run updateConversations when isFocused or messages change
   useEffect(() => {
     updateConversations();
@@ -359,14 +360,14 @@ export default function ConversationListScreen() {
       <MainHeader />
       
       {/* Socket Status Indicator (Always visible in corner) */}
-      <TouchableOpacity
+      {/* <TouchableOpacity
         style={[styles.socketIndicator, { backgroundColor: socketStatus.connected ? '#4CAF50' : '#F44336' }]}
         onPress={() => setShowSocketPanel(true)}
       >
         <Text style={styles.socketIndicatorText}>
           {socketStatus.connected ? '●' : '○'}
         </Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
 
       <FlatList
         ref={flatListRef}
@@ -390,7 +391,7 @@ export default function ConversationListScreen() {
       />
 
       {/* Socket Status Panel Modal */}
-      <Modal
+      {/* <Modal
         visible={showSocketPanel}
         transparent={true}
         animationType="slide"
@@ -466,7 +467,7 @@ export default function ConversationListScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </Modal> */}
 
       <BottomNavBar />
     </View>
