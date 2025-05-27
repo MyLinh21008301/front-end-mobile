@@ -1,5 +1,3 @@
-// PersonalScreen.js
-
 import React, { useLayoutEffect, useState } from "react";
 import {
   View,
@@ -16,13 +14,13 @@ import {
   Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useUserInfo } from "../contexts/UserInfoContext"; // Adjust path if needed
+import { useUserInfo } from "../contexts/UserInfoContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { updateUserInfo } from "../apis/UserAPI"; // Import the API function
-import { changePassword } from "../apis/AuthAPI"; // Import the change password function
-import * as ImagePicker from "expo-image-picker"; // Import ImagePicker
-import BottomNavBar from '../components/BottomNavBar';
+import { updateUserInfo } from "../apis/UserAPI";
+import { changePassword } from "../apis/AuthAPI";
+import * as ImagePicker from "expo-image-picker";
+import BottomNavBar from "../components/BottomNavBar";
 
 export default function PersonalScreen({ navigation }) {
   const { userInfo, setUserInfo } = useUserInfo();
@@ -31,48 +29,48 @@ export default function PersonalScreen({ navigation }) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Change password modal states
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  // const [passwordData, setPasswordData] = useState({
+  //   currentPassword: "",
+  //   newPassword: "",
+  //   confirmPassword: "",
+  // });
   const [passwordData, setPasswordData] = useState({
-    currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
   const [passwordLoading, setPasswordLoading] = useState(false);
-
-  // Initialize edited info when entering edit mode
   const startEditing = () => {
     setEditedInfo({
       name: userInfo.name || "",
       bio: userInfo.bio || "",
       dateOfBirth: userInfo.dateOfBirth || "",
-      male: userInfo.male !== undefined ? userInfo.male : true,
+      male:
+        userInfo.male !== undefined && userInfo.male !== null
+          ? userInfo.male
+          : false, // Đặt mặc định là false
       status: userInfo.status || "",
-      baseImg: userInfo.baseImg || null,
-      backgroundImg: userInfo.backgroundImg || null,
-      // Keep current images to avoid forcing updates
+      baseImg: null,
+      backgroundImg: null,
       currentBaseImg: userInfo.baseImg,
       currentBackgroundImg: userInfo.backgroundImg,
     });
     setIsEditing(true);
   };
 
-  // Cancel editing and reset to original data
   const cancelEditing = () => {
     setIsEditing(false);
     setEditedInfo({});
   };
 
-  // Handle date change from date picker
   const onDateChange = (event, selectedDate) => {
     setShowDatePicker(Platform.OS === "ios");
     if (selectedDate) {
-      const formattedDate = selectedDate.toISOString().split("T")[0]; // Format as YYYY-MM-DD
+      const formattedDate = selectedDate.toISOString().split("T")[0];
       setEditedInfo({ ...editedInfo, dateOfBirth: formattedDate });
     }
   };
 
-  // Image picker for avatar
   const pickAvatar = async () => {
     try {
       const { status } =
@@ -112,7 +110,6 @@ export default function PersonalScreen({ navigation }) {
     }
   };
 
-  // Image picker for background
   const pickBackground = async () => {
     try {
       const { status } =
@@ -152,7 +149,6 @@ export default function PersonalScreen({ navigation }) {
     }
   };
 
-  // Save updated information
   const saveChanges = async () => {
     try {
       setLoading(true);
@@ -162,30 +158,28 @@ export default function PersonalScreen({ navigation }) {
         return;
       }
 
-      // Prepare data for update
       const updateData = {
         name: editedInfo.name,
-        bio: editedInfo.bio,
-        dateOfBirth: editedInfo.dateOfBirth,
-        male: editedInfo.male,
-        status: editedInfo.status,
+        bio: editedInfo.bio || "",
+        dateOfBirth: editedInfo.dateOfBirth || "",
+        male:
+          editedInfo.male !== undefined && editedInfo.male !== null
+            ? editedInfo.male
+            : false, // Đặt giá trị mặc định là false để khớp với log
+        status: editedInfo.status || "",
       };
 
-      // Only include baseImg if it was changed (new image selected)
+      // Chỉ gửi baseImg nếu có ảnh mới
       if (editedInfo.baseImgPreview && editedInfo.baseImg) {
-        updateData.baseImg = editedInfo.baseImg;
-      } else if (!editedInfo.baseImgPreview && userInfo.baseImg) {
-        // If no new image was selected, keep the current baseImg
-        updateData.baseImg = userInfo.baseImg;
+        updateData.baseImg = editedInfo.baseImg; // Thêm object ảnh mới
       }
 
-      // Only include backgroundImg if it was changed (new image selected)
+      // Chỉ gửi backgroundImg nếu có ảnh mới
       if (editedInfo.backgroundImgPreview && editedInfo.backgroundImg) {
-        updateData.backgroundImg = editedInfo.backgroundImg;
-      } else if (!editedInfo.backgroundImgPreview && userInfo.backgroundImg) {
-        // If no new image was selected, keep the current backgroundImg
-        updateData.backgroundImg = userInfo.backgroundImg;
+        updateData.backgroundImg = editedInfo.backgroundImg; // Thêm object ảnh mới
       }
+
+      console.log("Update data to send:", updateData);
 
       const updatedUser = await updateUserInfo(updateData);
       setUserInfo({ ...userInfo, ...updatedUser });
@@ -193,12 +187,15 @@ export default function PersonalScreen({ navigation }) {
       setLoading(false);
       Alert.alert("Thành công", "Thông tin cá nhân đã được cập nhật");
     } catch (error) {
-      console.error("Error updating user info:", error);
+      console.error(
+        "Error updating user info:",
+        error.response?.data || error.message
+      );
       setLoading(false);
       Alert.alert("Lỗi", "Không thể cập nhật thông tin. Vui lòng thử lại sau.");
     }
   };
-  // Handle change password
+
   const handleChangePassword = async () => {
     if (
       !passwordData.currentPassword ||
@@ -221,7 +218,6 @@ export default function PersonalScreen({ navigation }) {
 
     try {
       setPasswordLoading(true);
-      console.log("Update data:", passwordData.newPassword);
       await changePassword(
         userInfo.phoneNumber,
         passwordData.newPassword,
@@ -245,7 +241,8 @@ export default function PersonalScreen({ navigation }) {
     }
   };
 
-  // Define the logout function
+  
+
   const handleLogout = async () => {
     try {
       await AsyncStorage.removeItem("authToken");
@@ -260,7 +257,6 @@ export default function PersonalScreen({ navigation }) {
     }
   };
 
-  // Format date for better display
   const formatDate = (dateString) => {
     if (!dateString) return "";
     try {
@@ -275,7 +271,6 @@ export default function PersonalScreen({ navigation }) {
     }
   };
 
-  // Configure the navigation header
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
@@ -296,9 +291,9 @@ export default function PersonalScreen({ navigation }) {
       headerTitleAlign: "center",
       headerStyle: {
         backgroundColor: "#fff",
-        elevation: 0, // Remove shadow on Android
-        shadowOpacity: 0, // Remove shadow on iOS
-        borderBottomWidth: 0, // Remove bottom border
+        elevation: 0,
+        shadowOpacity: 0,
+        borderBottomWidth: 0,
       },
       headerTitleStyle: {
         fontSize: 20,
@@ -307,7 +302,6 @@ export default function PersonalScreen({ navigation }) {
     });
   }, [navigation]);
 
-  // Render profile info item for viewing mode
   const renderProfileInfoItem = (iconName, label, value) => {
     if (!value && value !== false) return null;
     return (
@@ -326,7 +320,6 @@ export default function PersonalScreen({ navigation }) {
     );
   };
 
-  // Render profile info item for editing mode
   const renderEditableInfoItem = (
     iconName,
     label,
@@ -598,8 +591,6 @@ export default function PersonalScreen({ navigation }) {
           </View>
         </View>
       </ScrollView>
-
-      {/* Change Password Modal */}
       <Modal visible={showPasswordModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
@@ -675,7 +666,7 @@ export default function PersonalScreen({ navigation }) {
           </View>
         </View>
       </Modal>
-
+     
       {showDatePicker && (
         <DateTimePicker
           value={
@@ -694,7 +685,7 @@ export default function PersonalScreen({ navigation }) {
   );
 }
 
-// Styles
+// Styles remain unchanged
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -931,7 +922,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#fff",
   },
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
